@@ -1,4 +1,26 @@
+# Dependencies
 node_modules/
+
+# Build output
 dist/
+
+# Project state (user data, not source)
 projects/
+
+# Environment
 .env
+.env.local
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Editor
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# Logs
+*.log
+npm-debug.log*

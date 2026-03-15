@@ -1,15 +1,39 @@
 {
   "name": "acf",
   "version": "0.1.0",
-  "description": "Adaptive Creative Framework — CLI tool with dialectical engine",
+  "description": "Adaptive Creative Framework — a seven-phase CLI tool with an embedded Hegelian meta-cycle engine for creative projects",
   "author": "Wladimiro Bizzotto",
   "license": "CC-BY-4.0",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/escape/acf-project.git"
+  },
+  "homepage": "https://github.com/escape/acf-project#readme",
+  "keywords": [
+    "creative",
+    "framework",
+    "cli",
+    "ai",
+    "anthropic",
+    "dialectical",
+    "hegelian",
+    "creative-ops"
+  ],
+  "engines": {
+    "node": ">=18.0.0"
+  },
   "type": "module",
   "bin": {
     "acf": "./dist/index.js"
   },
+  "files": [
+    "dist/",
+    "acf-contract.yaml",
+    "creative-state.schema.json"
+  ],
   "scripts": {
     "build": "tsc",
+    "postbuild": "chmod +x dist/index.js",
     "start": "node dist/index.js",
     "dev": "tsx src/index.ts"
   },
