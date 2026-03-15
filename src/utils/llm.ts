@@ -26,11 +26,40 @@ export async function callLLMJson<T>(
   maxTokens = 2048
 ): Promise<T> {
   const raw = await callLLM(systemPrompt, userPrompt, maxTokens);
-  const match = raw.match(/```json\s*([\s\S]*?)```/) ?? raw.match(/(\{[\s\S]*\}|\[[\s\S]*\])/);
-  const jsonStr = match ? (match[1] ?? match[0]) : raw;
+  const jsonStr = extractJson(raw);
   try {
-    return JSON.parse(jsonStr.trim()) as T;
+    return JSON.parse(jsonStr) as T;
   } catch {
     throw new Error(`LLM returned invalid JSON:\n${raw}`);
   }
+}
+
+function extractJson(raw: string): string {
+  // 1. Try parsing the whole response directly
+  try { JSON.parse(raw.trim()); return raw.trim(); } catch { /* continue */ }
+
+  // 2. Find the outermost { } or [ ] using balanced matching (handles nested code blocks)
+  const opener = raw.indexOf("{") !== -1 ? "{" : "[";
+  const closer = opener === "{" ? "}" : "]";
+  const start = raw.indexOf(opener);
+  if (start === -1) return raw.trim();
+
+  let depth = 0;
+  let inString = false;
+  let escape = false;
+
+  for (let i = start; i < raw.length; i++) {
+    const ch = raw[i];
+    if (escape) { escape = false; continue; }
+    if (ch === "\\" && inString) { escape = true; continue; }
+    if (ch === '"') { inString = !inString; continue; }
+    if (inString) continue;
+    if (ch === opener) depth++;
+    if (ch === closer) {
+      depth--;
+      if (depth === 0) return raw.slice(start, i + 1);
+    }
+  }
+
+  return raw.trim();
 }

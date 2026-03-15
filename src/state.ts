@@ -92,6 +92,45 @@ export interface MetaCycleEntry {
   timestamp: string;
 }
 
+// ── Phase 4 types ────────────────────────────────────────────────────────────
+
+export interface Iteration {
+  version: number;
+  artifact: string;
+  feedback: string;
+  retro_notes: string;
+}
+
+// ── Phase 5 types ────────────────────────────────────────────────────────────
+
+export interface IntegratedArtifact {
+  final_draft: string;
+  coherence_report: string;
+  ethics_check: string;
+}
+
+// ── Phase 6 types ────────────────────────────────────────────────────────────
+
+export interface DeliveredWork {
+  final_artifact: string;
+  context_notes: string;
+  reception_log: string;
+}
+
+export interface ProjectRetro {
+  what_worked: string[];
+  what_didnt: string[];
+  belief_shifts: string[];
+}
+
+// ── Phase 7 types ────────────────────────────────────────────────────────────
+
+export interface MethodologyUpdates {
+  process_patches: string[];
+  belief_calibration: string[];
+  pattern_library: string[];
+}
+
 export interface CreativeState {
   id: string;
   created_at: string;
@@ -112,6 +151,15 @@ export interface CreativeState {
   meta_cycle_log: MetaCycleEntry[];
   // Track meta-cycle count per phase to enforce max_cycles_per_phase: 3
   meta_cycle_count?: Record<number, number>;
+  // Phase 4
+  iterations?: Iteration[];
+  // Phase 5
+  integrated_artifact?: IntegratedArtifact;
+  // Phase 6
+  delivered_work?: DeliveredWork;
+  project_retro?: ProjectRetro;
+  // Phase 7
+  methodology_updates?: MethodologyUpdates;
 }
 
 // ── Persistence ─────────────────────────────────────────────────────────────

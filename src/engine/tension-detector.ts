@@ -90,7 +90,47 @@ export function detectTriggers(state: CreativeState): DetectionResult {
     }
   }
 
-  // 5. Phase 1 specific: assumptions contradict each other (confidence mismatch + opposing sources)
+  // 5. Phase 4: stagnation between iterations
+  if (state.phase === 4 && state.iterations && state.iterations.length >= 2) {
+    const last = state.iterations[state.iterations.length - 1];
+    const prev = state.iterations[state.iterations.length - 2];
+    const sim = jaccard(tokenize(last.artifact), tokenize(prev.artifact));
+    if (sim > 0.72) {
+      return {
+        triggered: true,
+        reason: "stagnation",
+        detail: `Iteration v${last.version} is ${Math.round(sim * 100)}% similar to v${prev.version} — cosmetic changes only.`,
+      };
+    }
+    // Uniformly positive feedback
+    const feedbackText = (last.feedback ?? "").toLowerCase();
+    const negativeWords = ["weak", "fail", "missing", "wrong", "problem", "issue", "gap", "unclear", "poor"];
+    const hasCritique = negativeWords.some((w) => feedbackText.includes(w));
+    if (!hasCritique && feedbackText.length > 20) {
+      return {
+        triggered: true,
+        reason: "groupthink",
+        detail: "Feedback on the latest iteration contains no critical pushback — may be sycophantic.",
+      };
+    }
+  }
+
+  // 6. Phase 5: final draft drifts from framing
+  if (state.phase === 5 && state.integrated_artifact?.final_draft && state.framing?.core_questions) {
+    const framingText = state.framing.core_questions.map((q) => q.question).join(" ");
+    const draftTokens = tokenize(state.integrated_artifact.final_draft);
+    const framingTokens = tokenize(framingText);
+    const overlap = jaccard(draftTokens, framingTokens);
+    if (overlap < 0.04 && framingTokens.size > 8) {
+      return {
+        triggered: true,
+        reason: "drift",
+        detail: `Final draft has very low overlap (${Math.round(overlap * 100)}%) with original framing questions.`,
+      };
+    }
+  }
+
+  // 7. Phase 1 specific: assumptions contradict each other (confidence mismatch + opposing sources)
   if (state.phase === 1 && state.framing?.assumptions) {
     const assumptions = state.framing.assumptions;
     if (assumptions.length >= 2) {

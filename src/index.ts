@@ -12,7 +12,10 @@ import {
 import { runPhase1 } from "./phases/phase1-framing.js";
 import { runPhase2 } from "./phases/phase2-diverge.js";
 import { runPhase3 } from "./phases/phase3-converge.js";
-import { runPhase4, runPhase5, runPhase6, runPhase7 } from "./phases/phase-stubs.js";
+import { runPhase4 } from "./phases/phase4-craft.js";
+import { runPhase5 } from "./phases/phase5-polish.js";
+import { runPhase6 } from "./phases/phase6-deliver.js";
+import { runPhase7 } from "./phases/phase7-learn.js";
 import { runMetaCycle, checkAndRunMetaCycle } from "./engine/meta-cycle.js";
 
 // ── Helpers ──────────────────────────────────────────────────────────────────
@@ -120,7 +123,7 @@ program
 
     // Run phases interactively
     let running = true;
-    while (running && state.phase <= 3) {
+    while (running && state.phase <= 7) {
       await runCurrentPhase(state);
 
       if (state.phase_status === "blocked") {
@@ -128,14 +131,15 @@ program
         continue;
       }
 
+      const isLast = state.phase === 7;
       const { next } = await inquirer.prompt<{ next: string }>([
         {
           type: "list",
           name: "next",
           message: `Phase ${state.phase} complete. What next?`,
           choices: [
-            ...(state.phase < 3 ? [{ name: `Advance to Phase ${state.phase + 1}: ${phaseLabel(state.phase + 1)}`, value: "advance" }] : []),
-            ...(state.phase === 3 ? [{ name: "Finish (phases 4–7 are stubs)", value: "finish" }] : []),
+            ...(!isLast ? [{ name: `Advance to Phase ${state.phase + 1}: ${phaseLabel(state.phase + 1)}`, value: "advance" }] : []),
+            ...(isLast ? [{ name: "Complete project", value: "finish" }] : []),
             { name: "Repeat this phase", value: "repeat" },
             { name: "Manually trigger meta-cycle", value: "meta" },
             { name: "Save and exit", value: "exit" },
@@ -152,7 +156,6 @@ program
         await runMetaCycle(state, true);
         saveState(state);
       } else if (next === "finish") {
-        await advancePhase(state);
         running = false;
       } else {
         running = false;
@@ -188,7 +191,8 @@ program
       if (state.phase_status === "blocked") continue;
 
       const choices = [];
-      if (state.phase < 7) choices.push({ name: `Advance to Phase ${state.phase + 1}`, value: "advance" });
+      if (state.phase < 7) choices.push({ name: `Advance to Phase ${state.phase + 1}: ${phaseLabel(state.phase + 1)}`, value: "advance" });
+      if (state.phase === 7) choices.push({ name: "Complete project", value: "finish" });
       choices.push({ name: "Repeat this phase", value: "repeat" });
       choices.push({ name: "Manually trigger meta-cycle", value: "meta" });
       choices.push({ name: "Save and exit", value: "exit" });
@@ -197,12 +201,9 @@ program
         { type: "list", name: "next", message: "What next?", choices },
       ]);
 
-      if (next === "advance") {
+      if (next === "advance" || next === "finish") {
         await advancePhase(state);
-        if (state.phase > 3) {
-          console.log(chalk.dim("  Phases 4–7 are stubs in this POC."));
-          running = false;
-        }
+        if (state.phase > 7) running = false;
       } else if (next === "repeat") {
         state.phase_status = "in_progress";
         saveState(state);
