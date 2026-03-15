@@ -1,0 +1,258 @@
+# ============================================================================
+# ACF Semantic Contract v0.1
+# Adaptive Creative Framework — Machine-Readable Specification
+# Author: Wladimiro Bizzotto | License: CC BY 4.0
+# ============================================================================
+# This contract defines what ACF *is* computationally:
+# - The shape of creative state at any moment
+# - What each phase requires and produces
+# - When and how the dialectical engine fires
+# - What "tension" means in measurable terms
+# ============================================================================
+
+contract:
+  name: "ACF"
+  version: "0.1.0"
+  description: >
+    A seven-phase creative ops framework with an embedded dialectical engine
+    that uses contradiction as a generative force.
+
+# ============================================================================
+# CREATIVE STATE — the central data object that flows through everything
+# ============================================================================
+creative_state:
+  description: >
+    A snapshot of project progress at any point. This is the single source
+    of truth that phases read from and write to.
+  schema: "./creative-state.schema.json"
+  required_fields:
+    - id                  # unique project identifier
+    - phase               # current phase (1-7)
+    - brief               # the original creative brief / problem statement
+    - artifacts           # list of outputs produced so far
+    - tensions            # active contradictions or unresolved conflicts
+    - belief_tags         # explicit assumptions the team is operating under
+    - meta_cycle_log      # history of dialectical interventions
+
+# ============================================================================
+# PHASES — what each phase expects and delivers
+# ============================================================================
+phases:
+
+  1_cognitive_framing:
+    intent: "Define what we're doing and why — surface assumptions early"
+    inputs:
+      - brief: "Raw creative brief or problem statement"
+      - context: "Domain references, constraints, prior art (optional)"
+    outputs:
+      - framing_doc:
+          contains:
+            - core_questions: "3-7 questions the project must answer"
+            - constraints: "Hard boundaries (budget, time, ethical, legal)"
+            - assumptions: "Explicit beliefs we're operating under"
+            - blind_spot_audit: "What might we be missing? Who disagrees?"
+    exit_criteria:
+      - "At least 3 core questions defined"
+      - "At least 2 assumptions explicitly stated and tagged"
+      - "Blind spot audit completed (even if findings are 'none identified')"
+    tension_triggers:
+      - "Assumptions contradict each other"
+      - "Core questions are too narrow (all point same direction)"
+
+  2_divergent_exploration:
+    intent: "Generate breadth — quantity over quality, no filtering yet"
+    inputs:
+      - framing_doc: "From phase 1"
+    outputs:
+      - idea_pool:
+          min_items: 5
+          contains:
+            - idea_text: "Description of the idea"
+            - source_tag: "Where it came from (analogy, inversion, reference, random)"
+            - belief_challenge: "Which assumption from phase 1 does this idea test?"
+    exit_criteria:
+      - "Minimum 5 distinct ideas generated"
+      - "At least 2 ideas challenge existing assumptions"
+      - "Ideas span at least 2 different source_tags"
+    tension_triggers:
+      - "All ideas cluster around same theme (low divergence)"
+      - "No ideas challenge any stated assumption"
+
+  3_directional_convergence:
+    intent: "Filter and commit — pick directions worth developing"
+    inputs:
+      - idea_pool: "From phase 2"
+      - framing_doc: "From phase 1 (for alignment check)"
+    outputs:
+      - selected_directions:
+          min_items: 1
+          max_items: 3
+          contains:
+            - idea_ref: "Reference to idea from pool"
+            - feasibility_score: "1-5 scale"
+            - impact_score: "1-5 scale"
+            - risk_notes: "What could go wrong"
+            - dissent_record: "Who disagreed and why (even if solo: 'devil's advocate notes')"
+    exit_criteria:
+      - "At least 1 direction selected with scores"
+      - "Dissent record is non-empty for every selection"
+    tension_triggers:
+      - "All selected directions are 'safe' (no high-risk, high-impact picks)"
+      - "Dissent record is generic or dismissive"
+
+  4_iterative_crafting:
+    intent: "Build in short cycles — prototype, test, refine"
+    inputs:
+      - selected_directions: "From phase 3"
+    outputs:
+      - iterations:
+          contains:
+            - version: "Iteration number"
+            - artifact: "The thing built (file, text, design, code, etc.)"
+            - feedback: "Reactions from review (structured)"
+            - retro_notes: "What we learned this cycle"
+    exit_criteria:
+      - "At least 2 iterations completed"
+      - "Feedback collected on each iteration"
+      - "Retro notes address what changed and why"
+    tension_triggers:
+      - "Iterations converge too fast (v2 ≈ v1 with cosmetic changes)"
+      - "Feedback is uniformly positive (no pushback captured)"
+
+  5_polishing_integration:
+    intent: "Unify and refine — coherence check across all parts"
+    inputs:
+      - iterations: "From phase 4 (latest versions)"
+      - framing_doc: "From phase 1 (alignment check)"
+    outputs:
+      - integrated_artifact:
+          contains:
+            - final_draft: "The unified work"
+            - coherence_report: "How parts connect, what was cut and why"
+            - ethics_check: "Anything problematic surfaced?"
+    exit_criteria:
+      - "Coherence report completed"
+      - "Ethics check completed (even if 'no issues found')"
+    tension_triggers:
+      - "Final draft drifts significantly from original framing"
+      - "Cut material was more interesting than what survived"
+
+  6_delivery:
+    intent: "Ship it — present, launch, hand off"
+    inputs:
+      - integrated_artifact: "From phase 5"
+    outputs:
+      - delivered_work:
+          contains:
+            - final_artifact: "The shipped thing"
+            - context_notes: "How to read/use this, what it's responding to"
+            - reception_log: "Initial reactions (structured)"
+      - project_retro:
+          contains:
+            - what_worked: "List"
+            - what_didnt: "List"
+            - belief_shifts: "Which assumptions from phase 1 turned out wrong?"
+    exit_criteria:
+      - "Work delivered to intended audience/channel"
+      - "Project retrospective completed"
+
+  7_continuous_learning:
+    intent: "Feed insights back into the system — this phase never truly closes"
+    inputs:
+      - project_retro: "From phase 6"
+      - meta_cycle_log: "Full history of dialectical interventions"
+    outputs:
+      - methodology_updates:
+          contains:
+            - process_patches: "What to change in how we work"
+            - belief_calibration: "Updated priors for next project"
+            - pattern_library: "Reusable patterns discovered"
+    persistence: true  # This phase writes back to the system, not just the project
+
+# ============================================================================
+# HEGELIAN META-CYCLE — the dialectical engine
+# ============================================================================
+meta_cycle:
+  description: >
+    A process that monitors creative state for stagnation, groupthink, or
+    drift, then introduces structured contradiction to force evolution.
+    Runs as a check at every phase transition and can be invoked mid-phase.
+
+  trigger_conditions:
+    stagnation:
+      description: "Work is not evolving between iterations"
+      detection: "Semantic similarity between consecutive artifacts > threshold"
+      threshold: 0.85  # cosine similarity — tune empirically
+    groupthink:
+      description: "All feedback/ideas converge without dissent"
+      detection: "Dissent records empty or sentiment uniformly positive"
+    drift:
+      description: "Current work has diverged from original framing"
+      detection: "Semantic distance between current artifact and core_questions > threshold"
+      threshold: 0.7
+    comfort_zone:
+      description: "All choices are low-risk"
+      detection: "No selected direction has risk_notes with severity > 'moderate'"
+
+  cycle_steps:
+    thesis:
+      input: "Current creative_state snapshot"
+      action: "Summarize the current position and its implicit commitments"
+    antithesis:
+      input: "Thesis summary + trigger reason"
+      action: >
+        Generate a structured counter-position. Not random — specifically
+        designed to stress-test the weakness that triggered the cycle.
+      output_format:
+        challenge: "What's wrong with the current direction"
+        alternative: "A concrete different approach"
+        provocation: "A question the team hasn't asked"
+    synthesis:
+      input: "Thesis + Antithesis"
+      action: >
+        Produce a reframed creative state that incorporates the tension
+        without simply averaging the two positions. The synthesis should
+        be *higher* than either — not a compromise but an evolution.
+      output:
+        updated_state: "Modified creative_state"
+        evolution_note: "What changed and why"
+        phase_recommendation: "Stay in current phase, advance, or regress"
+
+  constraints:
+    max_cycles_per_phase: 3    # prevent infinite dialectical loops
+    cooldown_iterations: 1     # minimum iterations between forced cycles
+    human_override: true       # human can always dismiss a synthesis
+
+# ============================================================================
+# ROLES (minimal — for solo or small team use)
+# ============================================================================
+roles:
+  creator:
+    description: "Does the work. Writes, designs, builds, codes."
+  knowledge_steward:
+    description: >
+      Watches for drift and groupthink. Can inject 'belief fragments' —
+      structured challenges to current assumptions. In a solo context,
+      this role is played by the meta-cycle engine.
+    powers:
+      - "Pause a phase to demand assumption review"
+      - "Inject a belief fragment into any phase's tension log"
+      - "Request a meta-cycle outside normal triggers"
+
+# ============================================================================
+# IMPLEMENTATION NOTES FOR CLAUDE CODE POC
+# ============================================================================
+poc_scope:
+  description: >
+    The POC covers phases 1-3 plus the meta-cycle engine.
+    Phases 4-7 are stubbed but not implemented.
+  target:
+    - "Phase 1: LLM-assisted framing from a raw brief"
+    - "Phase 2: LLM-generated divergent ideas with belief-challenge tagging"
+    - "Phase 3: Scoring and selection with forced dissent generation"
+    - "Meta-cycle: Triggered automatically at phase transitions"
+  out_of_scope:
+    - "Vector database integration (use in-memory for POC)"
+    - "Multi-user collaboration"
+    - "Container orchestration"
+    - "Persistent storage beyond local filesystem"

@@ -1,0 +1,296 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "https://acf.schema/creative-state.json",
+  "title": "ACF Creative State",
+  "description": "A snapshot of project progress within the Adaptive Creative Framework. This is the single object that flows through all phases and the meta-cycle engine.",
+  "type": "object",
+  "required": ["id", "phase", "brief", "artifacts", "tensions", "belief_tags", "meta_cycle_log"],
+  "properties": {
+    "id": {
+      "type": "string",
+      "description": "Unique project identifier",
+      "examples": ["proj_2025_campaign_rebrand"]
+    },
+    "created_at": {
+      "type": "string",
+      "format": "date-time"
+    },
+    "updated_at": {
+      "type": "string",
+      "format": "date-time"
+    },
+    "phase": {
+      "type": "integer",
+      "minimum": 1,
+      "maximum": 7,
+      "description": "Current phase (1=Cognitive Framing, 2=Divergent Exploration, 3=Directional Convergence, 4=Iterative Crafting, 5=Polishing & Integration, 6=Delivery, 7=Continuous Learning)"
+    },
+    "phase_status": {
+      "type": "string",
+      "enum": ["in_progress", "blocked", "exit_criteria_met", "meta_cycle_active"],
+      "default": "in_progress"
+    },
+    "brief": {
+      "type": "object",
+      "description": "The original creative brief or problem statement",
+      "required": ["raw_text"],
+      "properties": {
+        "raw_text": {
+          "type": "string",
+          "description": "The brief as provided by the creator"
+        },
+        "domain": {
+          "type": "string",
+          "description": "Primary domain (e.g., 'branding', 'political campaign', 'product design', 'editorial')"
+        },
+        "stakeholders": {
+          "type": "array",
+          "items": { "type": "string" },
+          "description": "Who cares about the outcome"
+        }
+      }
+    },
+    "framing": {
+      "type": "object",
+      "description": "Output of Phase 1 — Cognitive Framing",
+      "properties": {
+        "core_questions": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "required": ["question"],
+            "properties": {
+              "question": { "type": "string" },
+              "why_it_matters": { "type": "string" }
+            }
+          },
+          "minItems": 3,
+          "maxItems": 7
+        },
+        "constraints": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "required": ["constraint", "type"],
+            "properties": {
+              "constraint": { "type": "string" },
+              "type": {
+                "type": "string",
+                "enum": ["budget", "time", "ethical", "legal", "technical", "cultural", "other"]
+              },
+              "hard": {
+                "type": "boolean",
+                "default": true,
+                "description": "Hard constraint = non-negotiable. Soft = preference."
+              }
+            }
+          }
+        },
+        "assumptions": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "required": ["assumption", "confidence"],
+            "properties": {
+              "assumption": { "type": "string" },
+              "confidence": {
+                "type": "string",
+                "enum": ["high", "medium", "low", "untested"],
+                "description": "How sure are we this is true?"
+              },
+              "source": {
+                "type": "string",
+                "description": "Where does this belief come from?"
+              }
+            }
+          },
+          "minItems": 2
+        },
+        "blind_spot_audit": {
+          "type": "object",
+          "properties": {
+            "findings": {
+              "type": "array",
+              "items": { "type": "string" }
+            },
+            "dissenting_perspectives": {
+              "type": "array",
+              "items": { "type": "string" },
+              "description": "Viewpoints that would disagree with our framing"
+            }
+          }
+        }
+      }
+    },
+    "idea_pool": {
+      "type": "array",
+      "description": "Output of Phase 2 — Divergent Exploration",
+      "items": {
+        "type": "object",
+        "required": ["id", "idea_text", "source_tag"],
+        "properties": {
+          "id": { "type": "string" },
+          "idea_text": { "type": "string" },
+          "source_tag": {
+            "type": "string",
+            "enum": ["analogy", "inversion", "reference", "combination", "random", "provocation", "constraint_flip"],
+            "description": "Generative method that produced this idea"
+          },
+          "belief_challenge": {
+            "type": "string",
+            "description": "Which assumption from framing does this idea test or contradict?"
+          },
+          "raw_notes": {
+            "type": "string",
+            "description": "Unstructured thinking behind the idea"
+          }
+        }
+      }
+    },
+    "selected_directions": {
+      "type": "array",
+      "description": "Output of Phase 3 — Directional Convergence",
+      "items": {
+        "type": "object",
+        "required": ["idea_ref", "feasibility_score", "impact_score", "dissent_record"],
+        "properties": {
+          "idea_ref": {
+            "type": "string",
+            "description": "References an id from idea_pool"
+          },
+          "feasibility_score": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 5
+          },
+          "impact_score": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 5
+          },
+          "risk_notes": {
+            "type": "string"
+          },
+          "risk_severity": {
+            "type": "string",
+            "enum": ["low", "moderate", "high", "critical"]
+          },
+          "dissent_record": {
+            "type": "string",
+            "minLength": 10,
+            "description": "Who disagreed and why. Must be substantive, not perfunctory."
+          }
+        }
+      },
+      "minItems": 1,
+      "maxItems": 3
+    },
+    "artifacts": {
+      "type": "array",
+      "description": "All outputs produced across all phases",
+      "items": {
+        "type": "object",
+        "required": ["id", "phase", "type", "content"],
+        "properties": {
+          "id": { "type": "string" },
+          "phase": { "type": "integer", "minimum": 1, "maximum": 7 },
+          "type": {
+            "type": "string",
+            "enum": ["framing_doc", "idea", "direction", "prototype", "draft", "final", "retro", "meta_cycle_output"]
+          },
+          "content": {
+            "type": "string",
+            "description": "The artifact content or a file reference"
+          },
+          "created_at": { "type": "string", "format": "date-time" }
+        }
+      }
+    },
+    "tensions": {
+      "type": "array",
+      "description": "Active contradictions, unresolved conflicts, open questions",
+      "items": {
+        "type": "object",
+        "required": ["id", "description", "status"],
+        "properties": {
+          "id": { "type": "string" },
+          "description": { "type": "string" },
+          "source": {
+            "type": "string",
+            "enum": ["human_identified", "meta_cycle", "feedback", "assumption_conflict"]
+          },
+          "status": {
+            "type": "string",
+            "enum": ["active", "resolved", "deferred", "escalated"]
+          },
+          "resolution": {
+            "type": "string",
+            "description": "How it was resolved, if resolved"
+          }
+        }
+      }
+    },
+    "belief_tags": {
+      "type": "array",
+      "description": "Explicit assumptions the project is operating under — living document",
+      "items": {
+        "type": "object",
+        "required": ["tag", "status"],
+        "properties": {
+          "tag": { "type": "string" },
+          "status": {
+            "type": "string",
+            "enum": ["active", "challenged", "revised", "discarded"]
+          },
+          "challenged_by": {
+            "type": "string",
+            "description": "What challenged this belief (meta-cycle id, feedback, etc.)"
+          }
+        }
+      }
+    },
+    "meta_cycle_log": {
+      "type": "array",
+      "description": "History of all Hegelian meta-cycle interventions",
+      "items": {
+        "type": "object",
+        "required": ["id", "phase", "trigger", "thesis", "antithesis", "synthesis"],
+        "properties": {
+          "id": { "type": "string" },
+          "phase": { "type": "integer" },
+          "trigger": {
+            "type": "string",
+            "enum": ["stagnation", "groupthink", "drift", "comfort_zone", "manual"]
+          },
+          "thesis": {
+            "type": "string",
+            "description": "Summary of current position"
+          },
+          "antithesis": {
+            "type": "object",
+            "properties": {
+              "challenge": { "type": "string" },
+              "alternative": { "type": "string" },
+              "provocation": { "type": "string" }
+            }
+          },
+          "synthesis": {
+            "type": "object",
+            "properties": {
+              "evolution_note": { "type": "string" },
+              "phase_recommendation": {
+                "type": "string",
+                "enum": ["stay", "advance", "regress"]
+              }
+            }
+          },
+          "accepted": {
+            "type": "boolean",
+            "description": "Did the human accept the synthesis?"
+          },
+          "timestamp": { "type": "string", "format": "date-time" }
+        }
+      }
+    }
+  }
+}

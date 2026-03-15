@@ -1,0 +1,30 @@
+{
+  "name": "acf",
+  "version": "0.1.0",
+  "description": "Adaptive Creative Framework — CLI tool with dialectical engine",
+  "author": "Wladimiro Bizzotto",
+  "license": "CC-BY-4.0",
+  "type": "module",
+  "bin": {
+    "acf": "./dist/index.js"
+  },
+  "scripts": {
+    "build": "tsc",
+    "start": "node dist/index.js",
+    "dev": "tsx src/index.ts"
+  },
+  "dependencies": {
+    "@anthropic-ai/sdk": "^0.39.0",
+    "inquirer": "^12.0.0",
+    "chalk": "^5.3.0",
+    "commander": "^12.1.0",
+    "ajv": "^8.17.0",
+    "yaml": "^2.6.0"
+  },
+  "devDependencies": {
+    "typescript": "^5.7.0",
+    "tsx": "^4.19.0",
+    "@types/node": "^22.0.0",
+    "@types/inquirer": "^9.0.0"
+  }
+}
