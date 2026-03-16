@@ -32,7 +32,8 @@ export async function runPhase3(state: CreativeState): Promise<void> {
   console.log(chalk.dim("  Scoring ideas and generating dissent records..."));
 
   const { system, user } = phase3ScoringPrompt(state);
-  const directions = await callLLMJson<SelectedDirection[]>(system, user, 2500);
+  const rawDirs = await callLLMJson<SelectedDirection[] | Record<string, SelectedDirection[]>>(system, user, 2500);
+  const directions: SelectedDirection[] = Array.isArray(rawDirs) ? rawDirs : (Object.values(rawDirs).find(Array.isArray) ?? []);
 
   // Display AI selections for review
   console.log("\n" + chalk.bold("  Suggested Directions\n"));

@@ -2,6 +2,8 @@
 import { program } from "commander";
 import chalk from "chalk";
 import inquirer from "inquirer";
+import fs from "fs";
+import path from "path";
 import {
   createNewState,
   loadState,
@@ -18,7 +20,41 @@ import { runPhase6 } from "./phases/phase6-deliver.js";
 import { runPhase7 } from "./phases/phase7-learn.js";
 import { runMetaCycle, checkAndRunMetaCycle } from "./engine/meta-cycle.js";
 
-// ── Helpers ──────────────────────────────────────────────────────────────────
+// ── Logging ───────────────────────────────────────────────────────────────────
+
+const ANSI_RE = /\x1B\[[0-9;]*[mGKHFABCDJK]/g;
+
+function stripAnsi(str: string): string {
+  return str.replace(ANSI_RE, "");
+}
+
+function setupLogFile(logPath: string): void {
+  const resolved = path.resolve(logPath);
+  const stream = fs.createWriteStream(resolved, { flags: "a" });
+
+  stream.write(`\n${"─".repeat(60)}\n`);
+  stream.write(`ACF session — ${new Date().toISOString()}\n`);
+  stream.write(`${"─".repeat(60)}\n\n`);
+
+  const originalWrite = process.stdout.write.bind(process.stdout) as typeof process.stdout.write;
+  (process.stdout as NodeJS.WriteStream).write = function (
+    chunk: string | Uint8Array,
+    encodingOrCb?: BufferEncoding | ((err?: Error | null) => void),
+    cb?: (err?: Error | null) => void
+  ): boolean {
+    const text = chunk instanceof Uint8Array ? new TextDecoder().decode(chunk) : chunk;
+    stream.write(stripAnsi(text));
+    if (typeof encodingOrCb === "function") {
+      return originalWrite(chunk, encodingOrCb);
+    }
+    return originalWrite(chunk, encodingOrCb as BufferEncoding, cb);
+  } as typeof process.stdout.write;
+
+  process.on("exit", () => stream.end());
+  console.log(chalk.dim(`  Logging to: ${resolved}\n`));
+}
+
+// ── Helpers ───────────────────────────────────────────────────────────────────
 
 function header(): void {
   console.log(chalk.bold.white("\n  ACF — Adaptive Creative Framework"));
@@ -88,7 +124,17 @@ async function runCurrentPhase(state: CreativeState): Promise<void> {
 program
   .name("acf")
   .description("Adaptive Creative Framework — dialectical engine for creative projects")
-  .version("0.1.0");
+  .version("0.1.0")
+  .option("--log", "write a plain-text transcript of this session to acf-session.log")
+  .option("--log-file <path>", "write a plain-text transcript to a specific file")
+  .hook("preAction", (thisCommand) => {
+    const opts = thisCommand.opts();
+    if (opts.logFile) {
+      setupLogFile(opts.logFile as string);
+    } else if (opts.log) {
+      setupLogFile("acf-session.log");
+    }
+  });
 
 // ── acf new ──────────────────────────────────────────────────────────────────
 

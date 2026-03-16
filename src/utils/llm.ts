@@ -39,10 +39,14 @@ function extractJson(raw: string): string {
   try { JSON.parse(raw.trim()); return raw.trim(); } catch { /* continue */ }
 
   // 2. Find the outermost { } or [ ] using balanced matching (handles nested code blocks)
-  const opener = raw.indexOf("{") !== -1 ? "{" : "[";
+  const curly = raw.indexOf("{");
+  const square = raw.indexOf("[");
+  const firstCurly = curly === -1 ? Infinity : curly;
+  const firstSquare = square === -1 ? Infinity : square;
+  const opener = firstSquare < firstCurly ? "[" : "{";
   const closer = opener === "{" ? "}" : "]";
-  const start = raw.indexOf(opener);
-  if (start === -1) return raw.trim();
+  const start = Math.min(firstCurly, firstSquare);
+  if (start === Infinity) return raw.trim();
 
   let depth = 0;
   let inString = false;
