@@ -9,7 +9,9 @@ import {
   loadState,
   saveState,
   listProjects,
+  generateId,
   type CreativeState,
+  type Lens,
 } from "./state.js";
 import { runPhase1 } from "./phases/phase1-framing.js";
 import { runPhase2 } from "./phases/phase2-diverge.js";
@@ -457,7 +459,118 @@ program
         .forEach((t) => lines.push(`- ${t.description}`));
     }
 
-    console.log(lines.join("\n"));
+    const markdown = lines.join("\n");
+
+    // Write to file
+    const exportDir = path.join(process.cwd(), "projects", "exports");
+    if (!fs.existsSync(exportDir)) fs.mkdirSync(exportDir, { recursive: true });
+    const exportPath = path.join(exportDir, `${state.id}.md`);
+    fs.writeFileSync(exportPath, markdown, "utf-8");
+
+    // Also print to terminal
+    console.log(markdown);
+    console.log(chalk.green(`\n  ✓ Saved to: ${exportPath}\n`));
+  });
+
+// ── acf assume ───────────────────────────────────────────────────────────────
+
+program
+  .command("assume <project-id> <instruction>")
+  .description("Inject a persistent assumption into all future LLM calls")
+  .option("--from <phase>", "activate from this phase number onward", "1")
+  .option("--label <label>", "short label for this assumption")
+  .action((projectId: string, instruction: string, opts) => {
+    let state: CreativeState;
+    try { state = loadState(projectId); } catch {
+      console.log(chalk.red(`  Project not found: ${projectId}`)); process.exit(1);
+    }
+    if (!state.lenses) state.lenses = [];
+    const lens: Lens = {
+      id: generateId("lens"),
+      type: "assumption",
+      instruction,
+      label: opts.label ?? instruction.slice(0, 50),
+      phase_from: parseInt(opts.from, 10) || 1,
+      active: true,
+      created_at: new Date().toISOString(),
+    };
+    state.lenses.push(lens);
+    saveState(state);
+    console.log(chalk.green(`\n  ✓ Assumption active from Phase ${lens.phase_from}:`));
+    console.log(chalk.white(`    "${instruction}"\n`));
+  });
+
+// ── acf lens ─────────────────────────────────────────────────────────────────
+
+program
+  .command("lens <project-id> <instruction>")
+  .description("Inject a persistent reasoning persona/frame into all future LLM calls")
+  .option("--from <phase>", "activate from this phase number onward", "1")
+  .option("--label <label>", "short label for this lens")
+  .action((projectId: string, instruction: string, opts) => {
+    let state: CreativeState;
+    try { state = loadState(projectId); } catch {
+      console.log(chalk.red(`  Project not found: ${projectId}`)); process.exit(1);
+    }
+    if (!state.lenses) state.lenses = [];
+    const lens: Lens = {
+      id: generateId("lens"),
+      type: "persona",
+      instruction: `Reason like ${instruction}`,
+      label: opts.label ?? instruction.slice(0, 50),
+      phase_from: parseInt(opts.from, 10) || 1,
+      active: true,
+      created_at: new Date().toISOString(),
+    };
+    state.lenses.push(lens);
+    saveState(state);
+    console.log(chalk.green(`\n  ✓ Lens active from Phase ${lens.phase_from}:`));
+    console.log(chalk.white(`    "Reason like ${instruction}"\n`));
+  });
+
+// ── acf lenses ───────────────────────────────────────────────────────────────
+
+program
+  .command("lenses <project-id>")
+  .description("List all active lenses and assumptions for a project")
+  .action((projectId: string) => {
+    header();
+    let state: CreativeState;
+    try { state = loadState(projectId); } catch {
+      console.log(chalk.red(`  Project not found: ${projectId}`)); process.exit(1);
+    }
+    const lenses = state.lenses ?? [];
+    if (lenses.length === 0) {
+      console.log(chalk.dim("  No lenses or assumptions set.\n"));
+      return;
+    }
+    console.log(chalk.bold("  Active Lenses & Assumptions\n"));
+    lenses.forEach((l) => {
+      const status = l.active ? chalk.green("active") : chalk.dim("inactive");
+      const type = l.type === "assumption" ? chalk.cyan("[assume]") : chalk.magenta("[lens]  ");
+      console.log(`  ${type} ${status}  from Phase ${l.phase_from}  ${chalk.dim(l.id)}`);
+      console.log(`         ${l.instruction}`);
+      console.log();
+    });
+  });
+
+// ── acf drop-lens ─────────────────────────────────────────────────────────────
+
+program
+  .command("drop-lens <project-id> <lens-id>")
+  .description("Deactivate a lens or assumption by its ID")
+  .action((projectId: string, lensId: string) => {
+    let state: CreativeState;
+    try { state = loadState(projectId); } catch {
+      console.log(chalk.red(`  Project not found: ${projectId}`)); process.exit(1);
+    }
+    const lens = (state.lenses ?? []).find((l) => l.id === lensId);
+    if (!lens) {
+      console.log(chalk.red(`  Lens not found: ${lensId}`)); process.exit(1);
+    }
+    lens.active = false;
+    saveState(state);
+    console.log(chalk.green(`\n  ✓ Lens deactivated: "${lens.label}"\n`));
   });
 
 // ── Run ───────────────────────────────────────────────────────────────────────

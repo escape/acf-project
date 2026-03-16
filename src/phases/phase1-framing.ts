@@ -14,7 +14,7 @@ export async function runPhase1(state: CreativeState): Promise<void> {
   console.log();
   console.log(chalk.dim("  Generating framing document..."));
 
-  const { system, user } = phase1Prompt(state.brief.raw_text);
+  const { system, user } = phase1Prompt(state.brief.raw_text, state);
   const framing = await callLLMJson<Framing>(system, user, 2048);
 
   state.framing = framing;

@@ -2,18 +2,48 @@ import type { CreativeState } from "../state.js";
 
 // ── System context injected into every call ──────────────────────────────────
 
-export const ACF_SYSTEM_CONTEXT = `You are the ACF (Adaptive Creative Framework) engine.
+const ACF_BASE_CONTEXT = `You are the ACF (Adaptive Creative Framework) engine.
 Your role is to assist creative projects through structured phases with intellectual rigour.
 - Output only valid JSON unless told otherwise.
 - Be specific and substantive — generic outputs are failures.
 - Challenge assumptions; do not flatter or validate lazily.
 - Every response must be grounded in the actual brief and state provided.`;
 
+export function buildSystemContext(state?: CreativeState): string {
+  if (!state?.lenses?.length) return ACF_BASE_CONTEXT;
+
+  const active = state.lenses.filter(
+    (l) => l.active && l.phase_from <= state.phase
+  );
+  if (!active.length) return ACF_BASE_CONTEXT;
+
+  const assumptions = active
+    .filter((l) => l.type === "assumption")
+    .map((l) => `- Assume: ${l.instruction}`)
+    .join("\n");
+
+  const personas = active
+    .filter((l) => l.type === "persona")
+    .map((l) => `- ${l.instruction}`)
+    .join("\n");
+
+  const sections = [
+    ACF_BASE_CONTEXT,
+    assumptions ? `\nACTIVE ASSUMPTIONS (treat these as given for all reasoning):\n${assumptions}` : "",
+    personas ? `\nACTIVE REASONING LENSES (adopt these perspectives):\n${personas}` : "",
+  ].filter(Boolean);
+
+  return sections.join("\n");
+}
+
+// Keep exported for callers that don't have state (meta-cycle thesis plain text)
+export const ACF_SYSTEM_CONTEXT = ACF_BASE_CONTEXT;
+
 // ── Phase 1: Cognitive Framing ───────────────────────────────────────────────
 
-export function phase1Prompt(brief: string): { system: string; user: string } {
+export function phase1Prompt(brief: string, state?: CreativeState): { system: string; user: string } {
   return {
-    system: ACF_SYSTEM_CONTEXT,
+    system: buildSystemContext(state),
     user: `Analyse this creative brief and produce a Phase 1 Cognitive Framing document.
 
 BRIEF:
@@ -51,7 +81,7 @@ Rules:
 
 export function phase2Prompt(state: CreativeState): { system: string; user: string } {
   return {
-    system: ACF_SYSTEM_CONTEXT,
+    system: buildSystemContext(state),
     user: `You are generating divergent ideas for a creative project in Phase 2.
 
 BRIEF:
@@ -86,7 +116,7 @@ Rules:
 
 export function phase3ScoringPrompt(state: CreativeState): { system: string; user: string } {
   return {
-    system: ACF_SYSTEM_CONTEXT,
+    system: buildSystemContext(state),
     user: `You are scoring and selecting directions in Phase 3 of a creative project.
 
 BRIEF:
@@ -132,7 +162,7 @@ export function phase4IterationPrompt(
   feedback?: string
 ): { system: string; user: string } {
   return {
-    system: ACF_SYSTEM_CONTEXT,
+    system: buildSystemContext(state),
     user: `You are building iteration v${version} of a creative artifact.
 
 BRIEF:
@@ -177,7 +207,7 @@ export function phase4FeedbackPrompt(
   version: number
 ): { system: string; user: string } {
   return {
-    system: ACF_SYSTEM_CONTEXT,
+    system: buildSystemContext(state),
     user: `You are a critical reviewer of a creative artifact. Be honest, specific, and uncomfortable.
 
 BRIEF:
@@ -210,7 +240,7 @@ Do not be polite. Weak feedback is a failure.`,
 export function phase5IntegrationPrompt(state: CreativeState): { system: string; user: string } {
   const latestIteration = state.iterations?.[state.iterations.length - 1];
   return {
-    system: ACF_SYSTEM_CONTEXT,
+    system: buildSystemContext(state),
     user: `You are integrating and polishing a creative project in Phase 5.
 
 BRIEF:
@@ -242,7 +272,7 @@ Produce the integrated final artifact. Return a JSON object:
 
 export function phase6ContextNotesPrompt(state: CreativeState): { system: string; user: string } {
   return {
-    system: ACF_SYSTEM_CONTEXT,
+    system: buildSystemContext(state),
     user: `Write context notes for a delivered creative work.
 
 BRIEF:
@@ -264,7 +294,7 @@ Return a JSON object:
 
 export function phase6RetroPrompt(state: CreativeState): { system: string; user: string } {
   return {
-    system: ACF_SYSTEM_CONTEXT,
+    system: buildSystemContext(state),
     user: `Write a project retrospective for a completed creative project.
 
 BRIEF:
@@ -296,7 +326,7 @@ Be specific. Generic retros are useless.`,
 
 export function phase7LearningPrompt(state: CreativeState): { system: string; user: string } {
   return {
-    system: ACF_SYSTEM_CONTEXT,
+    system: buildSystemContext(state),
     user: `Extract reusable methodology insights from a completed creative project.
 
 PROJECT BRIEF:
@@ -329,7 +359,7 @@ export function metaCycleThesisPrompt(
   trigger: string
 ): { system: string; user: string } {
   return {
-    system: ACF_SYSTEM_CONTEXT,
+    system: buildSystemContext(state),
     user: `Summarise the current creative position as a THESIS for a Hegelian meta-cycle.
 
 TRIGGER: ${trigger}
@@ -368,7 +398,7 @@ export function metaCycleAntithesisPrompt(
   thesis: string
 ): { system: string; user: string } {
   return {
-    system: ACF_SYSTEM_CONTEXT,
+    system: buildSystemContext(state),
     user: `Generate an ANTITHESIS for a Hegelian meta-cycle intervention.
 
 TRIGGER REASON: ${trigger}
@@ -402,7 +432,7 @@ export function metaCycleSynthesisPrompt(
   antithesis: { challenge: string; alternative: string; provocation: string }
 ): { system: string; user: string } {
   return {
-    system: ACF_SYSTEM_CONTEXT,
+    system: buildSystemContext(state),
     user: `Generate a SYNTHESIS for a Hegelian meta-cycle. The synthesis must be higher than either position — an evolution, not a compromise.
 
 CURRENT PHASE: ${state.phase}

@@ -74,6 +74,16 @@ export interface BeliefTag {
   challenged_by?: string;
 }
 
+export interface Lens {
+  id: string;
+  type: "assumption" | "persona";
+  instruction: string;
+  label: string;
+  phase_from: number;
+  active: boolean;
+  created_at: string;
+}
+
 export interface MetaCycleEntry {
   id: string;
   phase: number;
@@ -148,6 +158,7 @@ export interface CreativeState {
   artifacts: Artifact[];
   tensions: Tension[];
   belief_tags: BeliefTag[];
+  lenses: Lens[];
   meta_cycle_log: MetaCycleEntry[];
   // Track meta-cycle count per phase to enforce max_cycles_per_phase: 3
   meta_cycle_count?: Record<number, number>;
@@ -212,6 +223,7 @@ export function createNewState(brief: string, domain?: string): CreativeState {
     artifacts: [],
     tensions: [],
     belief_tags: [],
+    lenses: [],
     meta_cycle_log: [],
     meta_cycle_count: {},
   };
