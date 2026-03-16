@@ -36,6 +36,22 @@ function setupLogFile(logPath: string): void {
   stream.write(`ACF session — ${new Date().toISOString()}\n`);
   stream.write(`${"─".repeat(60)}\n\n`);
 
+  // Buffer current line; reset on \r (inquirer redraws), flush on \n
+  let lineBuf = "";
+
+  function logChunk(text: string): void {
+    for (const ch of text) {
+      if (ch === "\r") {
+        lineBuf = "";           // inquirer is rewriting this line — discard partial
+      } else if (ch === "\n") {
+        stream.write(lineBuf + "\n");
+        lineBuf = "";
+      } else {
+        lineBuf += ch;
+      }
+    }
+  }
+
   const originalWrite = process.stdout.write.bind(process.stdout) as typeof process.stdout.write;
   (process.stdout as NodeJS.WriteStream).write = function (
     chunk: string | Uint8Array,
@@ -43,14 +59,17 @@ function setupLogFile(logPath: string): void {
     cb?: (err?: Error | null) => void
   ): boolean {
     const text = chunk instanceof Uint8Array ? new TextDecoder().decode(chunk) : chunk;
-    stream.write(stripAnsi(text));
+    logChunk(stripAnsi(text));
     if (typeof encodingOrCb === "function") {
       return originalWrite(chunk, encodingOrCb);
     }
     return originalWrite(chunk, encodingOrCb as BufferEncoding, cb);
   } as typeof process.stdout.write;
 
-  process.on("exit", () => stream.end());
+  process.on("exit", () => {
+    if (lineBuf) stream.write(lineBuf + "\n"); // flush any trailing partial line
+    stream.end();
+  });
   console.log(chalk.dim(`  Logging to: ${resolved}\n`));
 }
 
