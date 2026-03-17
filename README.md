@@ -71,9 +71,31 @@ node dist/index.js status <project-id>
 # Manually trigger a meta-cycle
 node dist/index.js meta-cycle <project-id>
 
-# Export a project as a markdown report
+# Export a project as a markdown report (also saves to ./projects/exports/<id>.md)
 node dist/index.js export <project-id>
 ```
+
+### Reasoning Lenses & Assumptions
+
+You can inject persistent directives that shape every LLM call for a project from a given phase onward.
+
+```bash
+# Inject a persistent assumption (treated as given for all reasoning)
+node dist/index.js assume <project-id> "The audience is mobile-first" --from 2
+node dist/index.js assume <project-id> "Budget is non-negotiable" --label budget
+
+# Inject a reasoning lens (Claude will reason from this perspective)
+node dist/index.js lens <project-id> "a sceptical B2B buyer" --from 3
+node dist/index.js lens <project-id> "a first-generation immigrant unfamiliar with the brand" --label immigrant-lens
+
+# List all lenses and assumptions for a project
+node dist/index.js lenses <project-id>
+
+# Deactivate a lens or assumption
+node dist/index.js drop-lens <project-id> <lens-id>
+```
+
+Lenses and assumptions are stored in the project state and automatically injected into the system context of every subsequent API call. Each one is scoped to a starting phase (`--from`) — nothing is applied retroactively.
 
 During development, you can run without building:
 
@@ -114,6 +136,17 @@ src/
 `acf-contract.yaml` is the authoritative specification of the framework — what each phase requires and produces, when the meta-cycle fires, and what "tension" means in measurable terms. The implementation is derived from it. If you extend the tool, update the contract first.
 
 `creative-state.schema.json` defines the `CreativeState` object that flows through every phase and persists to disk.
+
+### Reasoning Lenses
+
+Each project maintains a `lenses[]` array in its state. Lenses are of two types:
+
+| Type | What it does |
+|---|---|
+| `assumption` | Prepended as "Assume: …" — treated as given facts in every LLM call |
+| `persona` | Prepended as "Reason like …" — Claude adopts that reasoning perspective |
+
+`engine/prompts.ts` exports a `buildSystemContext(state)` function that filters active lenses for the current phase and injects them into the system prompt. All phase and meta-cycle prompts use this function, so any lens set before a phase runs is automatically in scope.
 
 ### LLM usage
 
