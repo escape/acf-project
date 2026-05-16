@@ -203,7 +203,7 @@ export function listProjects(): Array<{ id: string; phase: number; brief: string
   if (!fs.existsSync(PROJECTS_DIR)) return [];
   return fs
     .readdirSync(PROJECTS_DIR)
-    .filter((f) => f.endsWith(".json"))
+    .filter((f) => f.endsWith(".json") && f.startsWith("proj_"))
     .map((f) => {
       const s = JSON.parse(fs.readFileSync(path.join(PROJECTS_DIR, f), "utf-8")) as CreativeState;
       return { id: s.id, phase: s.phase, brief: s.brief.raw_text.slice(0, 80), updated_at: s.updated_at };

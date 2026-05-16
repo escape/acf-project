@@ -34,7 +34,11 @@ When triggered, it runs a **thesis → antithesis → synthesis** cycle and prop
 ## Prerequisites
 
 - Node.js 18+
-- An [Anthropic API key](https://console.anthropic.com/)
+- **Either** an [Anthropic API key](https://console.anthropic.com/) **or** a [Mistral API key](https://console.mistral.ai/)
+
+The ACF now supports both LLM providers:
+- **Anthropic (Claude)** - Default provider, excellent for complex reasoning
+- **Mistral** - Fast, cost-effective alternative with great creative capabilities
 
 ---
 
@@ -52,6 +56,21 @@ Set your API key:
 ```bash
 export ANTHROPIC_API_KEY=sk-ant-...
 ```
+
+### Using Mistral API
+
+ACF now supports Mistral as an alternative to Anthropic:
+
+```bash
+# Set Mistral as the provider
+export LLM_PROVIDER=mistral
+export MISTRAL_API_KEY=your_mistral_key_here
+
+# Run ACF with Mistral
+node dist/index.js new
+```
+
+See [MISTRAL.md](MISTRAL.md) for detailed setup and usage instructions.
 
 ---
 
@@ -73,6 +92,9 @@ node dist/index.js meta-cycle <project-id>
 
 # Export a project as a markdown report (also saves to ./projects/exports/<id>.md)
 node dist/index.js export <project-id>
+
+# Show project statistics and analytics
+node dist/index.js stats
 ```
 
 ### Reasoning Lenses & Assumptions
@@ -114,6 +136,8 @@ Project state is saved as JSON files in `./projects/`. The pattern library from 
 src/
 ├── index.ts                   # CLI entry point (commander)
 ├── state.ts                   # CreativeState types, load/save/list
+├── commands/
+│   └── stats.ts               # Project statistics and analytics
 ├── phases/
 │   ├── phase1-framing.ts      # Cognitive Framing
 │   ├── phase2-diverge.ts      # Divergent Exploration
@@ -127,7 +151,8 @@ src/
 │   ├── tension-detector.ts    # Heuristic trigger detection (Jaccard similarity)
 │   └── prompts.ts             # All LLM prompt templates
 └── utils/
-    ├── llm.ts                 # Anthropic SDK wrapper
+    ├── llm.ts                 # Multi-provider LLM wrapper (Anthropic/Mistral)
+    ├── llm-mistral.ts         # Mistral SDK integration
     └── exit-criteria.ts       # Phase transition validation
 ```
 

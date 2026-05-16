@@ -13,6 +13,7 @@ import {
   type CreativeState,
   type Lens,
 } from "./state.js";
+import { showProjectStats } from "./commands/stats.js";
 import { runPhase1 } from "./phases/phase1-framing.js";
 import { runPhase2 } from "./phases/phase2-diverge.js";
 import { runPhase3 } from "./phases/phase3-converge.js";
@@ -283,6 +284,16 @@ program
     }
 
     console.log(chalk.green(`\n  ✓ Project saved: ${state.id}\n`));
+  });
+
+// ── acf stats ─────────────────────────────────────────────────────────────────
+
+program
+  .command("stats")
+  .description("Show overall project statistics")
+  .action(() => {
+    header();
+    showProjectStats();
   });
 
 // ── acf status ───────────────────────────────────────────────────────────────

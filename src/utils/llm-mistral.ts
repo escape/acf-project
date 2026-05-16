@@ -1,45 +1,41 @@
-import Anthropic from "@anthropic-ai/sdk";
-import { callMistralLLM, callMistralLLMJson } from "./llm-mistral.js";
+import MistralClient from "@mistralai/mistralai";
 
-const anthropicClient = new Anthropic();
-const ANTHROPIC_MODEL = "claude-sonnet-4-20250514";
+const client = new MistralClient();
+const MODEL = "mistral-large-latest"; // or "mistral-small", "mistral-medium", etc.
 
-// Determine which provider to use based on environment variables
-const LLM_PROVIDER = process.env.LLM_PROVIDER || "anthropic"; // "anthropic" or "mistral"
-
-export async function callLLM(
+export async function callMistralLLM(
   systemPrompt: string,
   userPrompt: string,
   maxTokens = 2048
 ): Promise<string> {
-  if (LLM_PROVIDER === "mistral") {
-    return callMistralLLM(systemPrompt, userPrompt, maxTokens);
-  }
-
-  // Default to Anthropic
-  const response = await anthropicClient.messages.create({
-    model: ANTHROPIC_MODEL,
-    max_tokens: maxTokens,
-    system: systemPrompt,
-    messages: [{ role: "user", content: userPrompt }],
+  const response = await client.chat({
+    model: MODEL,
+    maxTokens: maxTokens,
+    temperature: 0.7,
+    messages: [
+      { role: "system", content: systemPrompt },
+      { role: "user", content: userPrompt }
+    ],
   });
 
-  const block = response.content[0];
-  if (block.type !== "text") throw new Error("Unexpected response type from LLM");
-  return block.text;
+  if (!response.choices || response.choices.length === 0) {
+    throw new Error("No response from Mistral API");
+  }
+
+  return response.choices[0].message.content || "";
 }
 
-export async function callLLMJson<T>(
+export async function callMistralLLMJson<T>(
   systemPrompt: string,
   userPrompt: string,
   maxTokens = 2048
 ): Promise<T> {
-  const raw = await callLLM(systemPrompt, userPrompt, maxTokens);
+  const raw = await callMistralLLM(systemPrompt, userPrompt, maxTokens);
   const jsonStr = extractJson(raw);
   try {
     return JSON.parse(jsonStr) as T;
   } catch {
-    throw new Error(`LLM returned invalid JSON:\n${raw}`);
+    throw new Error(`Mistral returned invalid JSON:\n${raw}`);
   }
 }
 
