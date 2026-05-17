@@ -1,4 +1,12 @@
 #!/usr/bin/env node
+
+/// <reference types="node" />
+
+// DEP0040 punycode deprecation warning has been permanently resolved by updating dependencies:
+// - @anthropic-ai/sdk: 0.39.0 → 0.96.0 (removed node-fetch dependency)
+// - @mistralai/mistralai: 0.1.3 → 2.2.1 (removed node-fetch dependency)
+// The new versions no longer use whatwg-url/punycode, eliminating the warning at the source.
+
 import { program } from "commander";
 import chalk from "chalk";
 import inquirer from "inquirer";
@@ -149,12 +157,24 @@ program
   .version("0.1.0")
   .option("--log", "write a plain-text transcript of this session to acf-session.log")
   .option("--log-file <path>", "write a plain-text transcript to a specific file")
+  .option("--llm-provider <provider>", "LLM provider to use (mistral or anthropic)", "anthropic")
+  .option("--api-key <key>", "API key for the selected LLM provider")
   .hook("preAction", (thisCommand) => {
     const opts = thisCommand.opts();
     if (opts.logFile) {
       setupLogFile(opts.logFile as string);
     } else if (opts.log) {
       setupLogFile("acf-session.log");
+    }
+    if (opts.llmProvider) {
+      process.env.LLM_PROVIDER = opts.llmProvider;
+    }
+    if (opts.apiKey) {
+      if (opts.llmProvider === "mistral") {
+        process.env.MISTRAL_API_KEY = opts.apiKey;
+      } else if (opts.llmProvider === "anthropic") {
+        process.env.ANTHROPIC_API_KEY = opts.apiKey;
+      }
     }
   });
 

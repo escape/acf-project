@@ -23,8 +23,8 @@ export async function runPhase2(state: CreativeState): Promise<void> {
   console.log(chalk.dim("  Generating ideas from varied generative methods..."));
 
   const { system, user } = phase2Prompt(state);
-  const raw = await callLLMJson<Idea[] | Record<string, Idea[]>>(system, user, 3000);
-  const ideas: Idea[] = Array.isArray(raw) ? raw : (Object.values(raw).find(Array.isArray) ?? []);
+  const raw = await callLLMJson<Idea[] | Record<string, Idea[]>>(system, user, 4096);
+  const ideas: Idea[] = Array.isArray(raw) ? raw : (Object.values(raw).flat().filter(Array.isArray).flat() ?? []);
 
   state.idea_pool = ideas;
 

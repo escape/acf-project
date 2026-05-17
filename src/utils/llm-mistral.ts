@@ -1,6 +1,8 @@
-import MistralClient from "@mistralai/mistralai";
+import { Mistral } from "@mistralai/mistralai";
 
-const client = new MistralClient();
+const client = new Mistral({
+  apiKey: process.env["MISTRAL_API_KEY"] ?? "",
+});
 const MODEL = "mistral-large-latest"; // or "mistral-small", "mistral-medium", etc.
 
 export async function callMistralLLM(
@@ -8,7 +10,7 @@ export async function callMistralLLM(
   userPrompt: string,
   maxTokens = 2048
 ): Promise<string> {
-  const response = await client.chat({
+  const response = await client.chat.complete({
     model: MODEL,
     maxTokens: maxTokens,
     temperature: 0.7,
@@ -22,7 +24,25 @@ export async function callMistralLLM(
     throw new Error("No response from Mistral API");
   }
 
-  return response.choices[0].message.content || "";
+  // Handle both string and ContentChunk[] response types
+  const content = response.choices[0].message?.content;
+  if (content === undefined || content === null) {
+    throw new Error("No content in Mistral API response");
+  }
+  if (typeof content === 'string') {
+    return content;
+  } else if (Array.isArray(content)) {
+    return content.map(chunk => {
+      if (typeof chunk === 'string') return chunk;
+      if ('text' in chunk) return chunk.text;
+      if ('image_url' in chunk && typeof chunk.image_url === 'object' && chunk.image_url && 'url' in chunk.image_url) {
+        return `[IMAGE: ${chunk.image_url.url}]`;
+      }
+      return '';
+    }).join('');
+  } else {
+    throw new Error("Unexpected response format from Mistral API");
+  }
 }
 
 export async function callMistralLLMJson<T>(

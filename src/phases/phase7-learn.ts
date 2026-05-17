@@ -46,7 +46,7 @@ export async function runPhase7(state: CreativeState): Promise<void> {
   console.log(chalk.dim("  Extracting methodology insights..."));
 
   const { system, user } = phase7LearningPrompt(state);
-  const updates = await callLLMJson<MethodologyUpdates>(system, user, 1500);
+  const updates = await callLLMJson<MethodologyUpdates>(system, user, 2048);
 
   console.log("\n" + chalk.bold("  Process Patches\n"));
   updates.process_patches?.forEach((p, i) =>

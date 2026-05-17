@@ -1,4 +1,4 @@
-# ACF — Adaptive Creative Framework (Claude Code POC)
+# ACF — Adaptive Creative Framework
 
 ## What This Is
 
@@ -8,13 +8,17 @@ A CLI tool that runs creative projects through a structured framework with an em
 
 Seven phases guide a creative project from brief to delivery. At each phase boundary (and optionally mid-phase), a **Hegelian meta-cycle** evaluates the work: it summarizes the current position (thesis), generates a structured counter-position (antithesis), and proposes an evolved reframing (synthesis). The human always decides whether to accept.
 
-## POC Scope
+## Scope
 
-Build phases 1–3 and the meta-cycle engine. Phases 4–7 are stubbed.
+All seven phases are implemented, plus the meta-cycle engine, reasoning lenses, project export, and a cross-project pattern library.
 
 - **Phase 1 — Cognitive Framing**: Take a raw brief, generate core questions, surface assumptions, run a blind-spot audit.
 - **Phase 2 — Divergent Exploration**: Generate 5+ ideas using varied methods (analogy, inversion, provocation, etc.), each tagged with which assumption it challenges.
 - **Phase 3 — Directional Convergence**: Score and select directions. Force dissent generation for every selection.
+- **Phase 4 — Iterative Crafting**: Build the artifact in versioned cycles with critical feedback each round.
+- **Phase 5 — Polishing & Integration**: Unify iterations into a final draft, coherence report, ethics check.
+- **Phase 6 — Delivery**: Ship the work, collect reception, generate a project retro.
+- **Phase 7 — Continuous Learning**: Extract reusable patterns and persist them to `projects/pattern-library.json` across projects.
 - **Meta-cycle**: Runs at each phase transition. Checks for stagnation, groupthink, drift, comfort-zone. If triggered, runs thesis→antithesis→synthesis and proposes state mutation.
 
 ## Key Files
@@ -25,11 +29,11 @@ Build phases 1–3 and the meta-cycle engine. Phases 4–7 are stubbed.
 ## Architecture Decisions
 
 - **Language**: TypeScript (Node.js)
-- **Interface**: CLI with interactive prompts (use `inquirer` or similar)
-- **LLM calls**: Use Anthropic SDK (`@anthropic-ai/sdk`). Model: `claude-sonnet-4-20250514`
+- **Interface**: CLI with interactive prompts (`inquirer`, `commander`)
+- **LLM calls**: Multi-provider wrapper supporting Anthropic (`@anthropic-ai/sdk` ≥0.96) and Mistral (`@mistralai/mistralai` ≥2.2). Default model: `claude-haiku-4-5-20251001`. Provider selected via `LLM_PROVIDER` env var or `--llm-provider` CLI flag.
 - **State**: Local filesystem. Save state as JSON files in a `./projects/` directory.
-- **No database**: In-memory for POC. No vector DB, no containers.
-- **No web UI**: CLI only for now.
+- **No database**: In-memory state. No vector DB, no containers.
+- **No web UI**: CLI only.
 
 ## Project Structure
 
@@ -41,21 +45,27 @@ acf/
 ├── package.json
 ├── tsconfig.json
 ├── src/
-│   ├── index.ts                   # CLI entry point
+│   ├── index.ts                   # CLI entry point (commander)
 │   ├── state.ts                   # CreativeState management (load/save/validate)
+│   ├── commands/
+│   │   └── stats.ts               # Project statistics and analytics
 │   ├── phases/
 │   │   ├── phase1-framing.ts      # Cognitive Framing
 │   │   ├── phase2-diverge.ts      # Divergent Exploration
 │   │   ├── phase3-converge.ts     # Directional Convergence
-│   │   └── phase-stubs.ts         # Phases 4-7 (placeholder)
+│   │   ├── phase4-craft.ts        # Iterative Crafting
+│   │   ├── phase5-polish.ts       # Polishing & Integration
+│   │   ├── phase6-deliver.ts      # Delivery
+│   │   └── phase7-learn.ts        # Continuous Learning
 │   ├── engine/
 │   │   ├── meta-cycle.ts          # Hegelian meta-cycle logic
 │   │   ├── tension-detector.ts    # Detects stagnation, drift, groupthink
 │   │   └── prompts.ts             # All LLM prompt templates
 │   └── utils/
-│       ├── llm.ts                 # Anthropic API wrapper
+│       ├── llm.ts                 # Multi-provider LLM wrapper (Anthropic/Mistral)
+│       ├── llm-mistral.ts         # Mistral SDK integration
 │       └── exit-criteria.ts       # Phase transition validation
-└── projects/                      # Saved project states (gitignored)
+└── projects/                      # Saved project states + pattern-library.json (gitignored)
 ```
 
 ## How It Should Work (User Flow)
@@ -96,6 +106,8 @@ Accept synthesis? [y/n/edit]
 
 - Every prompt includes the relevant section of the semantic contract as context.
 - Prompts ask for structured JSON output matching the schema.
+- **Tight output contracts**: long-form fields (Phase 4/5 artifacts, etc.) are declared as JSON strings with explicit word budgets and explicit instructions not to emit nested objects. Modern Claude/Mistral models fill whatever space you give them; loose schemas cause truncation failures.
+- **Token caps are generous**: Phase 4/5 use 16K caps because output truncation produces invalid JSON. You only pay for tokens actually generated.
 - The meta-cycle prompt explicitly receives the trigger reason and must address it specifically — no generic "have you considered the opposite?" responses.
 - Dissent generation prompts must produce substantive disagreement, not token pushback.
 
@@ -103,9 +115,16 @@ Accept synthesis? [y/n/edit]
 
 - `acf new` — Start a new project from a brief
 - `acf resume <project-id>` — Resume a saved project
-- `acf status <project-id>` — Show current state summary
+- `acf status [project-id]` — Show current state summary
 - `acf meta-cycle <project-id>` — Manually trigger a meta-cycle
 - `acf export <project-id>` — Export state as formatted markdown report
+- `acf stats` — Project statistics and analytics across all saved projects
+- `acf assume <project-id> "<text>" [--from N] [--label L]` — Inject a persistent assumption into the system prompt from a given phase onward
+- `acf lens <project-id> "<text>" [--from N] [--label L]` — Inject a reasoning persona/lens
+- `acf lenses <project-id>` — List active lenses and assumptions
+- `acf drop-lens <project-id> <lens-id>` — Deactivate a lens or assumption
+
+Global flags: `--llm-provider <anthropic|mistral>`, `--api-key <key>`, `--log`, `--log-file <path>`.
 
 ## What Good Looks Like
 

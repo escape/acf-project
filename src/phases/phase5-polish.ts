@@ -20,12 +20,17 @@ export async function runPhase5(state: CreativeState): Promise<void> {
   console.log(chalk.dim(`  Integrating from v${latest.version}...`));
 
   const { system, user } = phase5IntegrationPrompt(state);
-  const rawIntegrated = await callLLMJson<IntegratedArtifact>(system, user, 3500);
-  const integrated: IntegratedArtifact = {
-    final_draft: typeof rawIntegrated.final_draft === "string" ? rawIntegrated.final_draft : JSON.stringify(rawIntegrated.final_draft, null, 2),
-    coherence_report: typeof rawIntegrated.coherence_report === "string" ? rawIntegrated.coherence_report : JSON.stringify(rawIntegrated.coherence_report),
-    ethics_check: typeof rawIntegrated.ethics_check === "string" ? rawIntegrated.ethics_check : JSON.stringify(rawIntegrated.ethics_check),
-  };
+  const integrated = await callLLMJson<IntegratedArtifact>(system, user, 16384);
+
+  if (
+    typeof integrated.final_draft !== "string" ||
+    typeof integrated.coherence_report !== "string" ||
+    typeof integrated.ethics_check !== "string"
+  ) {
+    throw new Error(
+      `Phase 5 LLM returned non-string fields. The prompt requires all three fields to be strings. Got: final_draft=${typeof integrated.final_draft}, coherence_report=${typeof integrated.coherence_report}, ethics_check=${typeof integrated.ethics_check}`
+    );
+  }
 
   console.log("\n" + chalk.bold("  Final Draft\n"));
   console.log(chalk.white("  " + integrated.final_draft.replace(/\n/g, "\n  ")));
@@ -57,7 +62,7 @@ export async function runPhase5(state: CreativeState): Promise<void> {
   if (action === "regenerate") {
     console.log(chalk.dim("  Regenerating..."));
     const { system: s2, user: u2 } = phase5IntegrationPrompt(state);
-    const regen = await callLLMJson<IntegratedArtifact>(s2, u2, 3500);
+    const regen = await callLLMJson<IntegratedArtifact>(s2, u2, 16384);
     state.integrated_artifact = regen;
   } else if (action === "edit") {
     const { editedDraft } = await inquirer.prompt<{ editedDraft: string }>([

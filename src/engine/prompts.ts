@@ -187,13 +187,19 @@ ${JSON.stringify(
 ${previousArtifact ? `PREVIOUS ARTIFACT (v${version - 1}):\n"""\n${previousArtifact}\n"""` : ""}
 ${feedback ? `FEEDBACK ON PREVIOUS VERSION:\n"""\n${feedback}\n"""` : ""}
 
-Produce iteration v${version}. Return a JSON object:
+Produce iteration v${version}. Return a JSON object with exactly this shape:
 {
-  "artifact": "The creative work itself — substantive, not a description of what you'd make. Write it.",
-  "retro_notes": "What changed from the previous version and why, or what first principles guided v1. Be specific."
+  "artifact": "<markdown string>",
+  "retro_notes": "<plain string>"
 }
 
-Rules:
+Output rules (strict):
+- "artifact" MUST be a JSON string containing markdown. Do NOT emit a nested JSON object — use markdown headings (##, ###), lists, and prose inside the string instead.
+- "artifact" must be ≤ 1500 words. If the work needs more structure, compress with headings and bullets, do not exceed the budget.
+- "retro_notes" MUST be a plain string, ≤ 200 words.
+- Inside the "artifact" string, escape any double quotes (\\") and newlines (\\n) so the JSON stays valid.
+
+Content rules:
 - The artifact must be the actual work, not a plan for it.
 - If this is v1, make bold choices grounded in the selected directions.
 - If this is v2+, show meaningful evolution — not cosmetic changes.
@@ -259,12 +265,24 @@ ${latestIteration?.artifact ?? "none"}
 ALL ITERATION RETRO NOTES:
 ${state.iterations?.map((it) => `v${it.version}: ${it.retro_notes}`).join("\n") ?? "none"}
 
-Produce the integrated final artifact. Return a JSON object:
+Produce the integrated final artifact. Return a JSON object with exactly this shape:
 {
-  "final_draft": "The polished, unified work — write it in full",
-  "coherence_report": "How the parts connect. What was cut and why. How this responds to the original framing.",
-  "ethics_check": "Any problematic elements, blind spots, or harmful implications? Be honest. 'No issues found' is acceptable only if genuinely true."
-}`,
+  "final_draft": "<markdown string>",
+  "coherence_report": "<plain string>",
+  "ethics_check": "<plain string>"
+}
+
+Output rules (strict):
+- All three fields MUST be JSON strings. Do NOT emit nested JSON objects — use markdown inside the strings instead.
+- "final_draft" must be ≤ 2000 words. Use markdown headings (##, ###), lists, and prose.
+- "coherence_report" must be ≤ 300 words.
+- "ethics_check" must be ≤ 200 words. "No issues found" is acceptable only if genuinely true.
+- Inside any string, escape double quotes (\\") and newlines (\\n) so the JSON stays valid.
+
+Content rules:
+- The polished, unified work — write it in full within the word budget.
+- coherence_report: how the parts connect, what was cut and why, how this responds to the original framing.
+- ethics_check: problematic elements, blind spots, or harmful implications — be honest.`,
   };
 }
 
@@ -285,10 +303,15 @@ FINAL ARTIFACT:
 ${state.integrated_artifact?.final_draft ?? "none"}
 """
 
-Return a JSON object:
+Return a JSON object with exactly this shape:
 {
-  "context_notes": "How to read or use this work. What it's responding to. What decisions were made and why. Written for the audience, not the team."
-}`,
+  "context_notes": "<plain string, ≤ 400 words>"
+}
+
+Rules:
+- "context_notes" MUST be a JSON string, not a nested object.
+- Write for the audience, not the team. Cover: how to read or use this work, what it's responding to, what decisions were made and why.
+- Escape double quotes (\\") and newlines (\\n) inside the string so the JSON stays valid.`,
   };
 }
 
@@ -311,14 +334,18 @@ ${state.meta_cycle_log.map((e) => `- Phase ${e.phase} (${e.trigger}): ${e.synthe
 COHERENCE REPORT:
 ${state.integrated_artifact?.coherence_report ?? "none"}
 
-Return a JSON object:
+Return a JSON object with exactly this shape:
 {
-  "what_worked": ["..."],
-  "what_didnt": ["..."],
-  "belief_shifts": ["Which assumption from phase 1 turned out wrong or incomplete, and what replaced it"]
+  "what_worked": ["<bullet string>", "..."],
+  "what_didnt": ["<bullet string>", "..."],
+  "belief_shifts": ["<bullet string>", "..."]
 }
 
-Be specific. Generic retros are useless.`,
+Rules:
+- Each array contains 3–6 items.
+- Each item is a plain string, ≤ 40 words. No nested objects.
+- "belief_shifts": which assumption from Phase 1 turned out wrong or incomplete, and what replaced it.
+- Be specific. Generic retros are useless.`,
   };
 }
 
@@ -343,14 +370,20 @@ ${state.meta_cycle_log.map((e) => `- ${e.trigger} in phase ${e.phase}: ${e.antit
 BELIEF SHIFTS:
 ${state.project_retro?.belief_shifts?.join("\n") ?? "none"}
 
-Return a JSON object:
+Return a JSON object with exactly this shape:
 {
-  "process_patches": ["Specific changes to make to how this framework is used next time"],
-  "belief_calibration": ["Updated priors — what to assume (or not assume) going into the next project"],
-  "pattern_library": ["Reusable patterns or moves discovered in this project that could apply elsewhere"]
+  "process_patches": ["<bullet string>", "..."],
+  "belief_calibration": ["<bullet string>", "..."],
+  "pattern_library": ["<bullet string>", "..."]
 }
 
-These outputs persist beyond this project. Make them genuinely transferable.`,
+Rules:
+- Each array contains 3–6 items.
+- Each item is a plain string, ≤ 50 words. No nested objects.
+- process_patches: specific changes to make to how this framework is used next time.
+- belief_calibration: updated priors — what to assume (or not assume) going into the next project.
+- pattern_library: reusable patterns or moves discovered here that could apply elsewhere.
+- These outputs persist beyond this project. Make them genuinely transferable.`,
   };
 }
 

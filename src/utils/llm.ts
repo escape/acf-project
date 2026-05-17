@@ -1,8 +1,10 @@
 import Anthropic from "@anthropic-ai/sdk";
 import { callMistralLLM, callMistralLLMJson } from "./llm-mistral.js";
 
-const anthropicClient = new Anthropic();
-const ANTHROPIC_MODEL = "claude-sonnet-4-20250514";
+const anthropicClient = new Anthropic({
+  apiKey: process.env.ANTHROPIC_API_KEY,
+});
+const ANTHROPIC_MODEL = "claude-haiku-4-5-20251001"; // Updated to current recommended model (June 2026)
 
 // Determine which provider to use based on environment variables
 const LLM_PROVIDER = process.env.LLM_PROVIDER || "anthropic"; // "anthropic" or "mistral"
@@ -16,17 +18,28 @@ export async function callLLM(
     return callMistralLLM(systemPrompt, userPrompt, maxTokens);
   }
 
-  // Default to Anthropic
-  const response = await anthropicClient.messages.create({
-    model: ANTHROPIC_MODEL,
-    max_tokens: maxTokens,
-    system: systemPrompt,
-    messages: [{ role: "user", content: userPrompt }],
-  });
+  // Default to Anthropic with retry logic
+  let retries = 3;
+  while (retries > 0) {
+    try {
+      const response = await anthropicClient.messages.create({
+        model: ANTHROPIC_MODEL,
+        max_tokens: maxTokens,
+        system: systemPrompt,
+        messages: [{ role: "user", content: userPrompt }],
+      });
 
-  const block = response.content[0];
-  if (block.type !== "text") throw new Error("Unexpected response type from LLM");
-  return block.text;
+      const block = response.content[0];
+      if (block.type !== "text") throw new Error("Unexpected response type from LLM");
+      return block.text;
+    } catch (error) {
+      if (retries === 1) throw error;
+      console.log(`Retrying... (${retries} attempts left)`);
+      await new Promise(resolve => setTimeout(resolve, 1000 * (4 - retries))); // Exponential backoff
+      retries--;
+    }
+  }
+  throw new Error("Failed to get response from Anthropic after multiple retries");
 }
 
 export async function callLLMJson<T>(

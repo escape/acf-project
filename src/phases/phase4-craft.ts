@@ -51,11 +51,13 @@ export async function runPhase4(state: CreativeState): Promise<void> {
     previousArtifact,
     previousFeedback
   );
-  const raw = await callLLMJson<IterationLLMOutput>(system, user, 3000);
-  const output: IterationLLMOutput = {
-    artifact: typeof raw.artifact === "string" ? raw.artifact : JSON.stringify(raw.artifact, null, 2),
-    retro_notes: typeof raw.retro_notes === "string" ? raw.retro_notes : JSON.stringify(raw.retro_notes),
-  };
+  const output = await callLLMJson<IterationLLMOutput>(system, user, 16384);
+
+  if (typeof output.artifact !== "string" || typeof output.retro_notes !== "string") {
+    throw new Error(
+      `Phase 4 LLM returned non-string fields. The prompt requires "artifact" and "retro_notes" to be strings. Got: artifact=${typeof output.artifact}, retro_notes=${typeof output.retro_notes}`
+    );
+  }
 
   console.log("\n" + chalk.bold(`  Artifact v${currentVersion}\n`));
   console.log(chalk.white("  " + output.artifact.replace(/\n/g, "\n  ")));
@@ -81,7 +83,7 @@ export async function runPhase4(state: CreativeState): Promise<void> {
   if (feedbackMode === "ai" || feedbackMode === "both") {
     console.log(chalk.dim("  Generating critical review..."));
     const { system: fs, user: fu } = phase4FeedbackPrompt(state, output.artifact, currentVersion);
-    const aiFeedback = await callLLMJson<FeedbackLLMOutput>(fs, fu, 1000);
+    const aiFeedback = await callLLMJson<FeedbackLLMOutput>(fs, fu, 2048);
 
     console.log("\n" + chalk.bold("  AI Review"));
     console.log(chalk.green("  Works:    ") + aiFeedback.what_works);

@@ -24,7 +24,7 @@ export async function runPhase6(state: CreativeState): Promise<void> {
   // Generate context notes
   console.log("\n" + chalk.dim("  Generating context notes..."));
   const { system: cs, user: cu } = phase6ContextNotesPrompt(state);
-  const { context_notes } = await callLLMJson<{ context_notes: string }>(cs, cu, 800);
+  const { context_notes } = await callLLMJson<{ context_notes: string }>(cs, cu, 2048);
 
   console.log("\n" + chalk.bold("  Context Notes\n"));
   console.log(chalk.dim("  " + context_notes.replace(/\n/g, "\n  ")));
@@ -97,7 +97,7 @@ export async function runPhase6(state: CreativeState): Promise<void> {
   console.log("\n" + chalk.bold("  Project Retrospective\n"));
   console.log(chalk.dim("  Generating retrospective..."));
   const { system: rs, user: ru } = phase6RetroPrompt(state);
-  const retro = await callLLMJson<ProjectRetro>(rs, ru, 1200);
+  const retro = await callLLMJson<ProjectRetro>(rs, ru, 2048);
 
   console.log("\n" + chalk.bold("  What Worked"));
   retro.what_worked?.forEach((w) => console.log(chalk.green(`  + ${w}`)));

@@ -175,14 +175,14 @@ Each project maintains a `lenses[]` array in its state. Lenses are of two types:
 
 ### LLM usage
 
-All API calls use `claude-sonnet-4-20250514`. A typical full run (phases 1–7, one meta-cycle) uses roughly:
+Anthropic calls use `claude-haiku-4-5-20251001`. Mistral calls use `mistral-large-latest`. A typical full run (phases 1–7, one meta-cycle) uses roughly:
 
-- **10–16 API calls**
-- **~30,000–45,000 input tokens**
-- **~8,000–12,000 output tokens**
-- **~$0.15–0.30 USD**
+- **12–20 API calls**
+- **~40,000–60,000 input tokens**
+- **~15,000–25,000 output tokens** (Phase 4 and 5 emit substantial markdown artifacts within capped word budgets)
+- **~$0.10–0.20 USD** on Anthropic Haiku 4.5
 
-Stagnation and drift detection use heuristic lexical similarity (Jaccard) — no extra API calls.
+Output budgets are intentionally generous (16K cap on Phase 4/5) so long-form artifacts don't truncate; you only pay for tokens actually generated. Stagnation and drift detection use heuristic lexical similarity (Jaccard) — no extra API calls.
 
 ---
 
