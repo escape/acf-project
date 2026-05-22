@@ -1,73 +1,53 @@
-import chalk from "chalk";
-import fs from "fs";
-import path from "path";
 import type { CreativeState, MethodologyUpdates } from "../state.js";
 import { addArtifact } from "../state.js";
-import { callLLMJson } from "../utils/llm.js";
+import type { PhaseDeps } from "../adapters/deps.js";
 import { phase7LearningPrompt } from "../engine/prompts.js";
 import { checkPhase7ExitCriteria } from "../utils/exit-criteria.js";
 
-// Phase 7 has persistence: true — writes to a shared system-level patterns file
-const PATTERNS_FILE = path.join(process.cwd(), "projects", "pattern-library.json");
+export async function runPhase7(state: CreativeState, deps: PhaseDeps): Promise<void> {
+  const { llm, ui, store } = deps;
 
-interface PatternLibrary {
-  updated_at: string;
-  entries: Array<{
-    project_id: string;
-    date: string;
-    process_patches: string[];
-    belief_calibration: string[];
-    pattern_library: string[];
-  }>;
-}
-
-function loadPatternLibrary(): PatternLibrary {
-  if (!fs.existsSync(PATTERNS_FILE)) {
-    return { updated_at: new Date().toISOString(), entries: [] };
-  }
-  return JSON.parse(fs.readFileSync(PATTERNS_FILE, "utf-8")) as PatternLibrary;
-}
-
-function savePatternLibrary(lib: PatternLibrary): void {
-  lib.updated_at = new Date().toISOString();
-  fs.writeFileSync(PATTERNS_FILE, JSON.stringify(lib, null, 2), "utf-8");
-}
-
-export async function runPhase7(state: CreativeState): Promise<void> {
-  console.log("\n" + chalk.blue("━".repeat(60)));
-  console.log(chalk.blue.bold("  PHASE 7 — Continuous Learning"));
-  console.log(chalk.blue("━".repeat(60)) + "\n");
+  ui.section("PHASE 7 — Continuous Learning");
 
   if (!state.project_retro) {
-    console.log(chalk.red("  No project retro found. Run Phase 6 first."));
+    ui.error("No project retro found. Run Phase 6 first.");
     return;
   }
 
-  console.log(chalk.dim("  Extracting methodology insights..."));
+  ui.line("Extracting methodology insights...", "dim");
 
   const { system, user } = phase7LearningPrompt(state);
-  const updates = await callLLMJson<MethodologyUpdates>(system, user, 2048);
+  const updates = await llm.callJson<MethodologyUpdates>(system, user, { maxTokens: 2048 });
 
-  console.log("\n" + chalk.bold("  Process Patches\n"));
+  ui.heading("Process Patches");
   updates.process_patches?.forEach((p, i) =>
-    console.log(`  ${chalk.cyan(String(i + 1).padStart(2, "0"))}  ${p}`)
+    ui.segments([
+      { text: String(i + 1).padStart(2, "0"), style: "info" },
+      { text: `  ${p}` },
+    ])
   );
 
-  console.log("\n" + chalk.bold("  Belief Calibration\n"));
+  ui.heading("Belief Calibration");
   updates.belief_calibration?.forEach((b, i) =>
-    console.log(`  ${chalk.magenta(String(i + 1).padStart(2, "0"))}  ${b}`)
+    ui.segments([
+      { text: String(i + 1).padStart(2, "0"), style: "accent" },
+      { text: `  ${b}` },
+    ])
   );
 
-  console.log("\n" + chalk.bold("  Pattern Library\n"));
+  ui.heading("Pattern Library");
   updates.pattern_library?.forEach((p, i) =>
-    console.log(`  ${chalk.green(String(i + 1).padStart(2, "0"))}  ${p}`)
+    ui.segments([
+      { text: String(i + 1).padStart(2, "0"), style: "success" },
+      { text: `  ${p}` },
+    ])
   );
 
   state.methodology_updates = updates;
   addArtifact(state, "retro", JSON.stringify(updates, null, 2));
 
-  // Persist to system-level pattern library
-  const lib = loadPatternLibrary();
+  // Persist to system-level pattern library (cross-project)
+  const lib = await store.loadPatternLibrary();
   lib.entries.push({
     project_id: state.id,
     date: new Date().toISOString().slice(0, 10),
@@ -75,20 +55,21 @@ export async function runPhase7(state: CreativeState): Promise<void> {
     belief_calibration: updates.belief_calibration ?? [],
     pattern_library: updates.pattern_library ?? [],
   });
-  savePatternLibrary(lib);
+  await store.savePatternLibrary(lib);
 
-  console.log(chalk.green(`\n  ✓ Patterns persisted to: projects/pattern-library.json`));
-  console.log(chalk.dim(`  Library now contains ${lib.entries.length} project(s) of learnings.`));
+  ui.blank();
+  ui.success("Patterns persisted to: projects/pattern-library.json");
+  ui.line(`Library now contains ${lib.entries.length} project(s) of learnings.`, "dim");
 
   // Exit criteria
-  console.log();
+  ui.blank();
   const check = checkPhase7ExitCriteria(state);
   if (check.passed) {
-    console.log(chalk.green("  ✓ Exit criteria met — project complete"));
+    ui.success("Exit criteria met — project complete");
     state.phase_status = "exit_criteria_met";
   } else {
-    console.log(chalk.red("  ✗ Exit criteria not met:"));
-    check.failures.forEach((f) => console.log(chalk.red(`    - ${f}`)));
+    ui.error("Exit criteria not met:");
+    check.failures.forEach((f) => ui.line(`    - ${f}`, "error"));
     state.phase_status = "blocked";
   }
 }

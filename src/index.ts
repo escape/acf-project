@@ -30,6 +30,10 @@ import { runPhase5 } from "./phases/phase5-polish.js";
 import { runPhase6 } from "./phases/phase6-deliver.js";
 import { runPhase7 } from "./phases/phase7-learn.js";
 import { runMetaCycle, checkAndRunMetaCycle } from "./engine/meta-cycle.js";
+import { createLLM, type ProviderName } from "./adapters/llm/registry.js";
+import { createCliUIAdapter } from "./adapters/ui/cli-inquirer.js";
+import { createFilesystemStore } from "./adapters/storage/filesystem.js";
+import type { PhaseDeps } from "./adapters/deps.js";
 
 // ── Logging ───────────────────────────────────────────────────────────────────
 
@@ -47,13 +51,12 @@ function setupLogFile(logPath: string): void {
   stream.write(`ACF session — ${new Date().toISOString()}\n`);
   stream.write(`${"─".repeat(60)}\n\n`);
 
-  // Buffer current line; reset on \r (inquirer redraws), flush on \n
   let lineBuf = "";
 
   function logChunk(text: string): void {
     for (const ch of text) {
       if (ch === "\r") {
-        lineBuf = "";           // inquirer is rewriting this line — discard partial
+        lineBuf = "";
       } else if (ch === "\n") {
         stream.write(lineBuf + "\n");
         lineBuf = "";
@@ -78,10 +81,32 @@ function setupLogFile(logPath: string): void {
   } as typeof process.stdout.write;
 
   process.on("exit", () => {
-    if (lineBuf) stream.write(lineBuf + "\n"); // flush any trailing partial line
+    if (lineBuf) stream.write(lineBuf + "\n");
     stream.end();
   });
   console.log(chalk.dim(`  Logging to: ${resolved}\n`));
+}
+
+// ── Adapter wiring ────────────────────────────────────────────────────────────
+
+function buildDeps(): PhaseDeps {
+  const provider = (process.env.LLM_PROVIDER ?? "anthropic") as ProviderName;
+  const apiKey =
+    provider === "anthropic"
+      ? process.env.ANTHROPIC_API_KEY
+      : process.env.MISTRAL_API_KEY;
+
+  if (!apiKey) {
+    const envName = provider === "anthropic" ? "ANTHROPIC_API_KEY" : "MISTRAL_API_KEY";
+    console.error(chalk.red(`  Missing ${envName}. Set it via --api-key or environment variable.\n`));
+    process.exit(1);
+  }
+
+  return {
+    llm: createLLM({ provider, apiKey }),
+    ui: createCliUIAdapter(),
+    store: createFilesystemStore(),
+  };
 }
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
@@ -104,10 +129,9 @@ function phaseLabel(phase: number): string {
   return labels[phase] ?? `Phase ${phase}`;
 }
 
-async function advancePhase(state: CreativeState): Promise<void> {
-  // Run meta-cycle check at phase transition
+async function advancePhase(state: CreativeState, deps: PhaseDeps): Promise<void> {
   console.log(chalk.dim("\n  Running meta-cycle check..."));
-  const { phaseRecommendation } = await checkAndRunMetaCycle(state);
+  const { phaseRecommendation } = await checkAndRunMetaCycle(state, deps);
 
   if (phaseRecommendation === "regress" && state.phase > 1) {
     const { confirm } = await inquirer.prompt<{ confirm: boolean }>([
@@ -134,15 +158,15 @@ async function advancePhase(state: CreativeState): Promise<void> {
   saveState(state);
 }
 
-async function runCurrentPhase(state: CreativeState): Promise<void> {
+async function runCurrentPhase(state: CreativeState, deps: PhaseDeps): Promise<void> {
   switch (state.phase) {
-    case 1: await runPhase1(state); break;
-    case 2: await runPhase2(state); break;
-    case 3: await runPhase3(state); break;
-    case 4: await runPhase4(state); break;
-    case 5: await runPhase5(state); break;
-    case 6: await runPhase6(state); break;
-    case 7: await runPhase7(state); break;
+    case 1: await runPhase1(state, deps); break;
+    case 2: await runPhase2(state, deps); break;
+    case 3: await runPhase3(state, deps); break;
+    case 4: await runPhase4(state, deps); break;
+    case 5: await runPhase5(state, deps); break;
+    case 6: await runPhase6(state, deps); break;
+    case 7: await runPhase7(state, deps); break;
     default:
       console.log(chalk.red(`  Unknown phase: ${state.phase}`));
   }
@@ -185,6 +209,7 @@ program
   .description("Start a new creative project")
   .action(async () => {
     header();
+    const deps = buildDeps();
 
     const { brief } = await inquirer.prompt<{ brief: string }>([
       {
@@ -209,10 +234,9 @@ program
     console.log(chalk.dim(`\n  Project ID: ${state.id}`));
     console.log(chalk.dim("  Saved to: projects/" + state.id + ".json\n"));
 
-    // Run phases interactively
     let running = true;
     while (running && state.phase <= 7) {
-      await runCurrentPhase(state);
+      await runCurrentPhase(state, deps);
 
       if (state.phase_status === "blocked") {
         console.log(chalk.red("\n  Phase blocked — exit criteria not met. Retrying phase."));
@@ -236,12 +260,12 @@ program
       ]);
 
       if (next === "advance") {
-        await advancePhase(state);
+        await advancePhase(state, deps);
       } else if (next === "repeat") {
         state.phase_status = "in_progress";
         saveState(state);
       } else if (next === "meta") {
-        await runMetaCycle(state, true);
+        await runMetaCycle(state, deps, true);
         saveState(state);
       } else if (next === "finish") {
         running = false;
@@ -261,6 +285,8 @@ program
   .description("Resume a saved project")
   .action(async (projectId: string) => {
     header();
+    const deps = buildDeps();
+
     let state: CreativeState;
     try {
       state = loadState(projectId);
@@ -274,7 +300,7 @@ program
 
     let running = true;
     while (running) {
-      await runCurrentPhase(state);
+      await runCurrentPhase(state, deps);
 
       if (state.phase_status === "blocked") continue;
 
@@ -290,13 +316,13 @@ program
       ]);
 
       if (next === "advance" || next === "finish") {
-        await advancePhase(state);
+        await advancePhase(state, deps);
         if (state.phase > 7) running = false;
       } else if (next === "repeat") {
         state.phase_status = "in_progress";
         saveState(state);
       } else if (next === "meta") {
-        await runMetaCycle(state, true);
+        await runMetaCycle(state, deps, true);
         saveState(state);
       } else {
         running = false;
@@ -393,6 +419,8 @@ program
   .description("Manually trigger a meta-cycle on a saved project")
   .action(async (projectId: string) => {
     header();
+    const deps = buildDeps();
+
     let state: CreativeState;
     try {
       state = loadState(projectId);
@@ -401,7 +429,7 @@ program
       process.exit(1);
     }
 
-    await runMetaCycle(state, true);
+    await runMetaCycle(state, deps, true);
     saveState(state);
     console.log(chalk.green(`\n  ✓ State saved.\n`));
   });
@@ -492,13 +520,11 @@ program
 
     const markdown = lines.join("\n");
 
-    // Write to file
     const exportDir = path.join(process.cwd(), "projects", "exports");
     if (!fs.existsSync(exportDir)) fs.mkdirSync(exportDir, { recursive: true });
     const exportPath = path.join(exportDir, `${state.id}.md`);
     fs.writeFileSync(exportPath, markdown, "utf-8");
 
-    // Also print to terminal
     console.log(markdown);
     console.log(chalk.green(`\n  ✓ Saved to: ${exportPath}\n`));
   });

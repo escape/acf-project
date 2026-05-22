@@ -6,6 +6,7 @@ dist/
 
 # Project state (user data, not source)
 projects/
+docs/
 
 # Environment
 .env

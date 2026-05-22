@@ -1,8 +1,6 @@
-import chalk from "chalk";
-import inquirer from "inquirer";
 import type { CreativeState } from "../state.js";
 import { generateId, addArtifact } from "../state.js";
-import { callLLM, callLLMJson } from "../utils/llm.js";
+import type { PhaseDeps } from "../adapters/deps.js";
 import {
   metaCycleThesisPrompt,
   metaCycleAntithesisPrompt,
@@ -25,6 +23,8 @@ interface Synthesis {
   phase_recommendation: "stay" | "advance" | "regress";
 }
 
+type Decision = "accept" | "dismiss" | "edit";
+
 function triggerLabel(reason: TriggerReason): string {
   const labels: Record<TriggerReason, string> = {
     stagnation: "STAGNATION",
@@ -38,8 +38,11 @@ function triggerLabel(reason: TriggerReason): string {
 
 export async function runMetaCycle(
   state: CreativeState,
+  deps: PhaseDeps,
   manualTrigger = false
 ): Promise<{ accepted: boolean; phaseRecommendation: "stay" | "advance" | "regress" }> {
+  const { llm, ui } = deps;
+
   const detection = manualTrigger ? null : detectTriggers(state);
 
   if (!manualTrigger && detection && !detection.triggered) {
@@ -53,66 +56,54 @@ export async function runMetaCycle(
     ? "Manually triggered by user."
     : (detection as { triggered: true; detail: string }).detail;
 
-  console.log("\n" + chalk.yellow("━".repeat(60)));
-  console.log(chalk.yellow.bold(`  ⚡ META-CYCLE INTERVENTION`));
-  console.log(chalk.yellow(`  Trigger: ${triggerLabel(triggerReason as TriggerReason)}`));
-  console.log(chalk.yellow(`  ${triggerDetail}`));
-  console.log(chalk.yellow("━".repeat(60)) + "\n");
+  ui.section(`⚡ META-CYCLE INTERVENTION`);
+  ui.line(`Trigger: ${triggerLabel(triggerReason)}`, "warn");
+  ui.line(triggerDetail, "warn");
+  ui.blank();
 
   // ── Step 1: Thesis ─────────────────────────────────────────────────────────
-  console.log(chalk.dim("  Generating thesis (current position)..."));
+  ui.line("Generating thesis (current position)...", "dim");
   const { system: tSys, user: tUser } = metaCycleThesisPrompt(state, triggerReason);
-  const thesis = await callLLM(tSys, tUser, 512);
+  const thesis = await llm.call(tSys, tUser, { maxTokens: 512 });
 
-  console.log("\n" + chalk.bold("  THESIS"));
-  console.log(chalk.white("  " + thesis.replace(/\n/g, "\n  ")));
+  ui.heading("THESIS");
+  ui.raw(thesis);
 
   // ── Step 2: Antithesis ─────────────────────────────────────────────────────
-  console.log("\n" + chalk.dim("  Generating antithesis (counter-position)..."));
+  ui.blank();
+  ui.line("Generating antithesis (counter-position)...", "dim");
   const { system: aSys, user: aUser } = metaCycleAntithesisPrompt(state, triggerReason, thesis);
-  const antithesis = await callLLMJson<Antithesis>(aSys, aUser, 800);
+  const antithesis = await llm.callJson<Antithesis>(aSys, aUser, { maxTokens: 800 });
 
-  console.log("\n" + chalk.bold("  ANTITHESIS"));
-  console.log(chalk.red("  Challenge:   ") + antithesis.challenge);
-  console.log(chalk.red("  Alternative: ") + antithesis.alternative);
-  console.log(chalk.red("  Provocation: ") + chalk.italic(antithesis.provocation));
+  ui.heading("ANTITHESIS");
+  ui.labeled("Challenge:   ", antithesis.challenge, "error");
+  ui.labeled("Alternative: ", antithesis.alternative, "error");
+  ui.labeled("Provocation: ", antithesis.provocation, "error");
 
   // ── Step 3: Synthesis ──────────────────────────────────────────────────────
-  console.log("\n" + chalk.dim("  Generating synthesis (evolution)..."));
+  ui.blank();
+  ui.line("Generating synthesis (evolution)...", "dim");
   const { system: sSys, user: sUser } = metaCycleSynthesisPrompt(state, thesis, antithesis);
-  const synthesis = await callLLMJson<Synthesis>(sSys, sUser, 600);
+  const synthesis = await llm.callJson<Synthesis>(sSys, sUser, { maxTokens: 600 });
 
-  console.log("\n" + chalk.bold("  SYNTHESIS"));
-  console.log(chalk.green("  Evolution:   ") + synthesis.evolution_note);
-  console.log(
-    chalk.green("  Recommend:   ") +
-      chalk.bold(synthesis.phase_recommendation.toUpperCase())
-  );
+  ui.heading("SYNTHESIS");
+  ui.labeled("Evolution:   ", synthesis.evolution_note, "success");
+  ui.labeled("Recommend:   ", synthesis.phase_recommendation.toUpperCase(), "success");
 
-  console.log();
+  ui.blank();
 
   // ── Human decision ─────────────────────────────────────────────────────────
-  const { decision } = await inquirer.prompt<{ decision: string }>([
-    {
-      type: "list",
-      name: "decision",
-      message: "Accept this synthesis?",
-      choices: [
-        { name: "Yes — accept and continue", value: "accept" },
-        { name: "No — dismiss and continue", value: "dismiss" },
-        { name: "Edit — I'll note my own synthesis", value: "edit" },
-      ],
-    },
+  const decision = await ui.choice<Decision>("Accept this synthesis?", [
+    { label: "Yes — accept and continue", value: "accept" },
+    { label: "No — dismiss and continue", value: "dismiss" },
+    { label: "Edit — I'll note my own synthesis", value: "edit" },
   ]);
 
   let accepted = decision === "accept";
   let userNote: string | undefined;
 
   if (decision === "edit") {
-    const { note } = await inquirer.prompt<{ note: string }>([
-      { type: "input", name: "note", message: "Your synthesis / reframing:" },
-    ]);
-    userNote = note;
+    userNote = await ui.text("Your synthesis / reframing:");
     accepted = true;
   }
 
@@ -141,7 +132,6 @@ export async function runMetaCycle(
   );
 
   if (accepted) {
-    // Add tension from antithesis provocation
     state.tensions.push({
       id: generateId("ten"),
       description: antithesis.provocation,
@@ -150,22 +140,22 @@ export async function runMetaCycle(
     });
   }
 
-  console.log(
-    accepted
-      ? chalk.green("  ✓ Synthesis accepted.")
-      : chalk.dim("  ✗ Synthesis dismissed.")
-  );
-  console.log(chalk.yellow("━".repeat(60)) + "\n");
+  if (accepted) {
+    ui.success("Synthesis accepted.");
+  } else {
+    ui.line("✗ Synthesis dismissed.", "dim");
+  }
 
   return { accepted, phaseRecommendation: synthesis.phase_recommendation };
 }
 
 export async function checkAndRunMetaCycle(
-  state: CreativeState
+  state: CreativeState,
+  deps: PhaseDeps
 ): Promise<{ phaseRecommendation: "stay" | "advance" | "regress" }> {
   const detection = detectTriggers(state);
   if (!detection.triggered) return { phaseRecommendation: "stay" };
 
-  const result = await runMetaCycle(state);
+  const result = await runMetaCycle(state, deps);
   return { phaseRecommendation: result.phaseRecommendation };
 }

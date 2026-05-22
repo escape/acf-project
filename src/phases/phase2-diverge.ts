@@ -1,71 +1,82 @@
-import chalk from "chalk";
 import type { CreativeState, Idea } from "../state.js";
 import { addArtifact } from "../state.js";
-import { callLLMJson } from "../utils/llm.js";
+import type { PhaseDeps } from "../adapters/deps.js";
+import type { Style } from "../adapters/ui/adapter.js";
 import { phase2Prompt } from "../engine/prompts.js";
 import { checkPhase2ExitCriteria } from "../utils/exit-criteria.js";
 
-const SOURCE_TAG_COLORS: Record<string, typeof chalk> = {
-  analogy: chalk.cyan,
-  inversion: chalk.red,
-  reference: chalk.blue,
-  combination: chalk.magenta,
-  random: chalk.gray,
-  provocation: chalk.yellow,
-  constraint_flip: chalk.green,
+const SOURCE_TAG_STYLE: Record<string, Style> = {
+  analogy: "info",
+  inversion: "error",
+  reference: "info",
+  combination: "accent",
+  random: "dim",
+  provocation: "warn",
+  constraint_flip: "success",
 };
 
-export async function runPhase2(state: CreativeState): Promise<void> {
-  console.log("\n" + chalk.blue("━".repeat(60)));
-  console.log(chalk.blue.bold("  PHASE 2 — Divergent Exploration"));
-  console.log(chalk.blue("━".repeat(60)) + "\n");
+export async function runPhase2(state: CreativeState, deps: PhaseDeps): Promise<void> {
+  const { llm, ui } = deps;
 
-  console.log(chalk.dim("  Generating ideas from varied generative methods..."));
+  ui.section("PHASE 2 — Divergent Exploration");
+  ui.line("Generating ideas from varied generative methods...", "dim");
 
   const { system, user } = phase2Prompt(state);
-  const raw = await callLLMJson<Idea[] | Record<string, Idea[]>>(system, user, 4096);
-  const ideas: Idea[] = Array.isArray(raw) ? raw : (Object.values(raw).flat().filter(Array.isArray).flat() ?? []);
+  const raw = await llm.callJson<Idea[] | Record<string, Idea[]>>(system, user, { maxTokens: 4096 });
+  const ideas: Idea[] = Array.isArray(raw)
+    ? raw
+    : (Object.values(raw).flat().filter(Array.isArray).flat() ?? []);
 
   state.idea_pool = ideas;
 
-  console.log("\n" + chalk.bold(`  Idea Pool (${ideas.length} ideas)\n`));
+  ui.heading(`Idea Pool (${ideas.length} ideas)`);
 
   ideas.forEach((idea, i) => {
-    const color = SOURCE_TAG_COLORS[idea.source_tag] ?? chalk.white;
-    console.log(
-      `  ${chalk.bold(String(i + 1).padStart(2, "0"))}  ${color(`[${idea.source_tag}]`)}  ${idea.idea_text}`
-    );
+    const tagStyle = SOURCE_TAG_STYLE[idea.source_tag] ?? "normal";
+    ui.segments([
+      { text: String(i + 1).padStart(2, "0"), style: "bold" },
+      { text: "  " },
+      { text: `[${idea.source_tag}]`, style: tagStyle },
+      { text: "  " },
+      { text: idea.idea_text },
+    ]);
     if (idea.belief_challenge) {
-      console.log(chalk.dim(`       ↳ challenges: ${idea.belief_challenge}`));
+      ui.line(`     ↳ challenges: ${idea.belief_challenge}`, "dim");
     }
   });
 
-  // Stats
+  // Coverage stats
   const byTag = ideas.reduce<Record<string, number>>((acc, idea) => {
     acc[idea.source_tag] = (acc[idea.source_tag] ?? 0) + 1;
     return acc;
   }, {});
 
-  console.log("\n" + chalk.bold("  Coverage"));
+  ui.heading("Coverage");
   Object.entries(byTag).forEach(([tag, count]) => {
-    const color = SOURCE_TAG_COLORS[tag] ?? chalk.white;
-    console.log(`  ${color(tag.padEnd(20))} ${"▪".repeat(count)} ${count}`);
+    const tagStyle = SOURCE_TAG_STYLE[tag] ?? "normal";
+    ui.segments([
+      { text: tag.padEnd(20), style: tagStyle },
+      { text: " " },
+      { text: "▪".repeat(count) },
+      { text: ` ${count}` },
+    ]);
   });
 
   const challenging = ideas.filter((i) => i.belief_challenge?.trim());
-  console.log(chalk.dim(`\n  ${challenging.length}/${ideas.length} ideas challenge an assumption`));
+  ui.blank();
+  ui.line(`${challenging.length}/${ideas.length} ideas challenge an assumption`, "dim");
 
   addArtifact(state, "idea", JSON.stringify(ideas, null, 2));
 
   // Exit criteria
-  console.log();
+  ui.blank();
   const check = checkPhase2ExitCriteria(state);
   if (check.passed) {
-    console.log(chalk.green("  ✓ Exit criteria met"));
+    ui.success("Exit criteria met");
     state.phase_status = "exit_criteria_met";
   } else {
-    console.log(chalk.red("  ✗ Exit criteria not met:"));
-    check.failures.forEach((f) => console.log(chalk.red(`    - ${f}`)));
+    ui.error("Exit criteria not met:");
+    check.failures.forEach((f) => ui.line(`    - ${f}`, "error"));
     state.phase_status = "blocked";
   }
 }

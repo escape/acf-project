@@ -1,26 +1,17 @@
-import chalk from "chalk";
-import inquirer from "inquirer";
 import type { CreativeState, IntegratedArtifact } from "../state.js";
 import { addArtifact } from "../state.js";
-import { callLLMJson } from "../utils/llm.js";
+import type { PhaseDeps } from "../adapters/deps.js";
 import { phase5IntegrationPrompt } from "../engine/prompts.js";
 import { checkPhase5ExitCriteria } from "../utils/exit-criteria.js";
 
-export async function runPhase5(state: CreativeState): Promise<void> {
-  console.log("\n" + chalk.blue("━".repeat(60)));
-  console.log(chalk.blue.bold("  PHASE 5 — Polishing & Integration"));
-  console.log(chalk.blue("━".repeat(60)) + "\n");
+type Phase5Action = "accept" | "edit" | "regenerate";
 
-  if (!state.iterations || state.iterations.length === 0) {
-    console.log(chalk.red("  No iterations found. Run Phase 4 first."));
-    return;
-  }
-
-  const latest = state.iterations[state.iterations.length - 1];
-  console.log(chalk.dim(`  Integrating from v${latest.version}...`));
-
+async function generateIntegrated(
+  state: CreativeState,
+  deps: PhaseDeps
+): Promise<IntegratedArtifact> {
   const { system, user } = phase5IntegrationPrompt(state);
-  const integrated = await callLLMJson<IntegratedArtifact>(system, user, 16384);
+  const integrated = await deps.llm.callJson<IntegratedArtifact>(system, user, { maxTokens: 16384 });
 
   if (
     typeof integrated.final_draft !== "string" ||
@@ -31,48 +22,50 @@ export async function runPhase5(state: CreativeState): Promise<void> {
       `Phase 5 LLM returned non-string fields. The prompt requires all three fields to be strings. Got: final_draft=${typeof integrated.final_draft}, coherence_report=${typeof integrated.coherence_report}, ethics_check=${typeof integrated.ethics_check}`
     );
   }
+  return integrated;
+}
 
-  console.log("\n" + chalk.bold("  Final Draft\n"));
-  console.log(chalk.white("  " + integrated.final_draft.replace(/\n/g, "\n  ")));
+export async function runPhase5(state: CreativeState, deps: PhaseDeps): Promise<void> {
+  const { ui } = deps;
 
-  console.log("\n" + chalk.bold("  Coherence Report\n"));
-  console.log(chalk.dim("  " + integrated.coherence_report.replace(/\n/g, "\n  ")));
+  ui.section("PHASE 5 — Polishing & Integration");
 
-  console.log("\n" + chalk.bold("  Ethics Check\n"));
-  const ethicsColor = integrated.ethics_check.toLowerCase().includes("no issues")
-    ? chalk.green
-    : chalk.yellow;
-  console.log(ethicsColor("  " + integrated.ethics_check.replace(/\n/g, "\n  ")));
+  if (!state.iterations || state.iterations.length === 0) {
+    ui.error("No iterations found. Run Phase 4 first.");
+    return;
+  }
+
+  const latest = state.iterations[state.iterations.length - 1];
+  ui.line(`Integrating from v${latest.version}...`, "dim");
+
+  const integrated = await generateIntegrated(state, deps);
+
+  ui.heading("Final Draft");
+  ui.raw(integrated.final_draft);
+
+  ui.heading("Coherence Report");
+  ui.raw(integrated.coherence_report);
+
+  ui.heading("Ethics Check");
+  const ethicsStyle = integrated.ethics_check.toLowerCase().includes("no issues") ? "success" : "warn";
+  ui.line(integrated.ethics_check.replace(/\n/g, "\n  "), ethicsStyle);
 
   // Human review
-  console.log();
-  const { action } = await inquirer.prompt<{ action: string }>([
-    {
-      type: "list",
-      name: "action",
-      message: "Review the integrated artifact:",
-      choices: [
-        { name: "Accept as final", value: "accept" },
-        { name: "Accept with my edits", value: "edit" },
-        { name: "Regenerate", value: "regenerate" },
-      ],
-    },
+  ui.blank();
+  const action = await ui.choice<Phase5Action>("Review the integrated artifact:", [
+    { label: "Accept as final", value: "accept" },
+    { label: "Accept with my edits", value: "edit" },
+    { label: "Regenerate", value: "regenerate" },
   ]);
 
   if (action === "regenerate") {
-    console.log(chalk.dim("  Regenerating..."));
-    const { system: s2, user: u2 } = phase5IntegrationPrompt(state);
-    const regen = await callLLMJson<IntegratedArtifact>(s2, u2, 16384);
+    ui.line("Regenerating...", "dim");
+    const regen = await generateIntegrated(state, deps);
     state.integrated_artifact = regen;
   } else if (action === "edit") {
-    const { editedDraft } = await inquirer.prompt<{ editedDraft: string }>([
-      {
-        type: "input",
-        name: "editedDraft",
-        message: "Paste your edited final draft:",
-        validate: (v) => v.trim().length > 20 ? true : "Draft is too short",
-      },
-    ]);
+    const editedDraft = await ui.text("Paste your edited final draft:", {
+      validate: (v) => (v.trim().length > 20 ? true : "Draft is too short"),
+    });
     state.integrated_artifact = { ...integrated, final_draft: editedDraft };
   } else {
     state.integrated_artifact = integrated;
@@ -81,14 +74,14 @@ export async function runPhase5(state: CreativeState): Promise<void> {
   addArtifact(state, "draft", state.integrated_artifact.final_draft);
 
   // Exit criteria
-  console.log();
+  ui.blank();
   const check = checkPhase5ExitCriteria(state);
   if (check.passed) {
-    console.log(chalk.green("  ✓ Exit criteria met"));
+    ui.success("Exit criteria met");
     state.phase_status = "exit_criteria_met";
   } else {
-    console.log(chalk.red("  ✗ Exit criteria not met:"));
-    check.failures.forEach((f) => console.log(chalk.red(`    - ${f}`)));
+    ui.error("Exit criteria not met:");
+    check.failures.forEach((f) => ui.line(`    - ${f}`, "error"));
     state.phase_status = "blocked";
   }
 }
