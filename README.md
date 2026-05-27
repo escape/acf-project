@@ -8,7 +8,7 @@ The tool should feel like working with a sharp creative director who won't let y
 
 ## How It Works
 
-You provide a creative brief. ACF walks you through seven phases, using Claude (via the Anthropic API) at each step:
+You provide a creative brief. ACF walks you through seven phases, using Mistral or Claude at each step:
 
 | Phase | Name | What happens |
 |---|---|---|
